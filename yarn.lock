@@ -212,6 +212,12 @@
     "@babel/helper-remap-async-to-generator" "7.0.0-beta.39"
     "@babel/plugin-syntax-async-generators" "7.0.0-beta.39"
 
+"@babel/plugin-proposal-function-bind@^7.0.0-beta.39":
+  version "7.0.0-beta.39"
+  resolved "https://registry.yarnpkg.com/@babel/plugin-proposal-function-bind/-/plugin-proposal-function-bind-7.0.0-beta.39.tgz#a5e6ad608b21427c4c2c99c3892cbb14211d1a66"
+  dependencies:
+    "@babel/plugin-syntax-function-bind" "7.0.0-beta.39"
+
 "@babel/plugin-proposal-object-rest-spread@7.0.0-beta.39":
   version "7.0.0-beta.39"
   resolved "https://registry.yarnpkg.com/@babel/plugin-proposal-object-rest-spread/-/plugin-proposal-object-rest-spread-7.0.0-beta.39.tgz#ea4d6ea974a364028e5074b1abe6505924d179a3"
@@ -238,6 +244,10 @@
 "@babel/plugin-syntax-flow@7.0.0-beta.39":
   version "7.0.0-beta.39"
   resolved "https://registry.yarnpkg.com/@babel/plugin-syntax-flow/-/plugin-syntax-flow-7.0.0-beta.39.tgz#b9247a81e4dacaa57aac3670792d788a64253f68"
+
+"@babel/plugin-syntax-function-bind@7.0.0-beta.39":
+  version "7.0.0-beta.39"
+  resolved "https://registry.yarnpkg.com/@babel/plugin-syntax-function-bind/-/plugin-syntax-function-bind-7.0.0-beta.39.tgz#ad4a6604de10bc9579307089ecdd3451b963d21d"
 
 "@babel/plugin-syntax-object-rest-spread@7.0.0-beta.39":
   version "7.0.0-beta.39"
@@ -526,7 +536,7 @@
     lodash "^4.2.0"
     to-fast-properties "^2.0.0"
 
-"@marsaud/smb2-promise@^0.2.0":
+"@marsaud/smb2-promise@^0.2.0", "@marsaud/smb2-promise@^0.2.1":
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/@marsaud/smb2-promise/-/smb2-promise-0.2.1.tgz#fee95f4baba6e4d930e8460d3377aa12560e0f0e"
   dependencies:
@@ -2634,6 +2644,14 @@ fs-extra@^2.0.0:
     graceful-fs "^4.1.2"
     jsonfile "^2.1.0"
 
+fs-extra@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-5.0.0.tgz#414d0110cdd06705734d055652c5411260c31abd"
+  dependencies:
+    graceful-fs "^4.1.2"
+    jsonfile "^4.0.0"
+    universalify "^0.1.0"
+
 fs-promise@^0.4.1:
   version "0.4.1"
   resolved "https://registry.yarnpkg.com/fs-promise/-/fs-promise-0.4.1.tgz#9d57aed89dbcea0fdb6d4cb9c2044aedd9722efd"
@@ -3050,6 +3068,13 @@ indent-string@^2.1.0:
 indent-string@^3.0.0:
   version "3.2.0"
   resolved "https://registry.yarnpkg.com/indent-string/-/indent-string-3.2.0.tgz#4a5fd6d27cc332f37e5419a504dbb837105c9289"
+
+index-modules@^0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/index-modules/-/index-modules-0.3.0.tgz#70a0d80be07ad3e1a6e4849c9aaf08348050a9ae"
+  dependencies:
+    lodash "^4.17.4"
+    promise-toolbox "^0.8.0"
 
 inflight@^1.0.4:
   version "1.0.6"
@@ -3843,6 +3868,12 @@ json5@^0.5.0, json5@^0.5.1:
 jsonfile@^2.1.0:
   version "2.4.0"
   resolved "https://registry.yarnpkg.com/jsonfile/-/jsonfile-2.4.0.tgz#3736a2b428b87bbda0cc83b53fa3d633a35c2ae8"
+  optionalDependencies:
+    graceful-fs "^4.1.6"
+
+jsonfile@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/jsonfile/-/jsonfile-4.0.0.tgz#8771aae0799b64076b76640fca058f9c10e33ecb"
   optionalDependencies:
     graceful-fs "^4.1.6"
 
@@ -5023,6 +5054,12 @@ promise-toolbox@^0.5.0:
   dependencies:
     make-error "^1.0.4"
 
+promise-toolbox@^0.8.0:
+  version "0.8.3"
+  resolved "https://registry.yarnpkg.com/promise-toolbox/-/promise-toolbox-0.8.3.tgz#b757232a21d246d8702df50da6784932dd0f5348"
+  dependencies:
+    make-error "^1.2.3"
+
 promise-toolbox@^0.9.5:
   version "0.9.5"
   resolved "https://registry.yarnpkg.com/promise-toolbox/-/promise-toolbox-0.9.5.tgz#ca33e53714cfde924a9bd3d2d23c53b21cb75acc"
@@ -5886,7 +5923,7 @@ throat@^4.0.0:
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/throat/-/throat-4.1.0.tgz#89037cbc92c56ab18926e6ba4cbb200e15672a6a"
 
-through2@^2.0.0, through2@~2.0.3:
+through2@^2.0.0, through2@^2.0.3, through2@~2.0.3:
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/through2/-/through2-2.0.3.tgz#0004569b37c7c74ba39c43f3ced78d1ad94140be"
   dependencies:
@@ -6043,6 +6080,10 @@ union-value@^1.0.0:
     get-value "^2.0.6"
     is-extendable "^0.1.1"
     set-value "^0.4.3"
+
+universalify@^0.1.0:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.1.tgz#fa71badd4437af4c148841e3b3b165f9e9e590b7"
 
 unset-value@^1.0.0:
   version "1.0.0"

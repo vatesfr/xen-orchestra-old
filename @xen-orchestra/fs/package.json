@@ -1,0 +1,56 @@
+{
+  "name": "@xen-orchestra/fs",
+  "version": "0.0.0",
+  "license": "ISC",
+  "description": "",
+  "keywords": [],
+  "homepage": "https://github.com/vatesfr/xen-orchestra/tree/master/packages/@xen-orchestra/fs",
+  "bugs": "https://github.com/vatesfr/xo-web/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vatesfr/xen-orchestra.git"
+  },
+  "author": {
+    "name": "Julien Fontanet",
+    "email": "julien.fontanet@vates.fr"
+  },
+  "preferGlobal": false,
+  "main": "dist/",
+  "bin": {},
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=6"
+  },
+  "dependencies": {
+    "@babel/polyfill": "7.0.0-beta.39",
+    "@marsaud/smb2-promise": "^0.2.1",
+    "event-to-promise": "^0.8.0",
+    "execa": "^0.8.0",
+    "fs-extra": "^5.0.0",
+    "lodash": "^4.17.4",
+    "promise-toolbox": "^0.9.5",
+    "through2": "^2.0.3",
+    "xo-remote-parser": "^0.3.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "7.0.0-beta.39",
+    "@babel/core": "7.0.0-beta.39",
+    "@babel/plugin-proposal-function-bind": "7.0.0-beta.39",
+    "@babel/preset-env": "7.0.0-beta.39",
+    "@babel/preset-flow": "7.0.0-beta.39",
+    "babel-plugin-lodash": "^3.3.2",
+    "cross-env": "^5.1.1",
+    "index-modules": "^0.3.0",
+    "rimraf": "^2.5.4"
+  },
+  "scripts": {
+    "build": "cross-env NODE_ENV=production babel --source-maps --out-dir=dist/ src/",
+    "clean": "rimraf dist/",
+    "dev": "cross-env NODE_ENV=development babel --watch --source-maps --out-dir=dist/ src/",
+    "prebuild": "yarn run clean && index-modules --auto src/",
+    "predev": "yarn run prebuild",
+    "prepublishOnly": "yarn run build"
+  }
+}
