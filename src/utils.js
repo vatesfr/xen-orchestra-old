@@ -80,6 +80,32 @@ export function camelToSnakeCase (string) {
 
 // -------------------------------------------------------------------
 
+export const copyWithoutIndices = (arr, indices) => {
+  const n = arr.length
+  const m = indices.length
+
+  const copy = new Array(n - m)
+
+  let i = 0
+  let k = 0
+
+  for (let j = 0; j < m; ++j) {
+    const index = indices[j]
+    while (i < index) {
+      copy[k++] = arr[i++]
+    }
+    ++i
+  }
+
+  while (i < n) {
+    copy[k++] = arr[i++]
+  }
+
+  return copy
+}
+
+// -------------------------------------------------------------------
+
 // Returns an empty object without prototype (if possible).
 export const createRawObject = Object.create
   ? (createObject => () => createObject(null))(Object.create)
