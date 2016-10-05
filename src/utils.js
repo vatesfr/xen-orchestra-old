@@ -106,6 +106,19 @@ export const copyWithoutIndices = (arr, indices) => {
 
 // -------------------------------------------------------------------
 
+export const createLock = () => {
+  let lock = Promise.resolve()
+  return () => lock.then(() => {
+    let resolve_
+    lock = new Promise(resolve => {
+      resolve_ = resolve
+    })
+    return resolve_
+  })
+}
+
+// -------------------------------------------------------------------
+
 // Returns an empty object without prototype (if possible).
 export const createRawObject = Object.create
   ? (createObject => () => createObject(null))(Object.create)
