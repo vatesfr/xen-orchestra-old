@@ -206,6 +206,7 @@ const mountPartition = (device, partitionId) => Promise.all([
     'loop',
     'ro',
   ]
+  let type = 'auto'
 
   if (partitions) {
     const partition = find(partitions, { id: partitionId })
@@ -213,6 +214,7 @@ const mountPartition = (device, partitionId) => Promise.all([
     const { start } = partition
     if (start != null) {
       options.push(`offset=${start * 512}`)
+      type = 'ext4'
     }
   }
 
@@ -220,6 +222,7 @@ const mountPartition = (device, partitionId) => Promise.all([
     `--options=${options.join(',')}`,
     `--source=${device.path}`,
     `--target=${path}`,
+    `--types=${type}`,
   ])
 
   // `norecovery` option is used for ext3/ext4/xfs, if it fails it
