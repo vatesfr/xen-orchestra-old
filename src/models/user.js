@@ -1,8 +1,6 @@
-import isEmpty from 'lodash/isEmpty'
-
 import Collection from '../collection/redis'
+import isEmpty from 'lodash/isEmpty'
 import Model from '../model'
-import { forEach } from '../utils'
 
 import { parseProp } from './utils'
 
@@ -29,16 +27,13 @@ export class Users extends Collection {
       throw new Error(`the user ${email} already exists`)
     }
 
-    // Create the user object.
-    const user = new User(properties)
-
     // Adds the user to the collection.
-    return /* await */ this.add(user)
+    return /* await */ this.add(properties)
   }
 
-  async save (user) {
-    // Serializes.
+  _serialize ({ ...user }) {
     let tmp
+
     user.groups = isEmpty(tmp = user.groups)
       ? undefined
       : JSON.stringify(tmp)
@@ -46,18 +41,13 @@ export class Users extends Collection {
       ? undefined
       : JSON.stringify(tmp)
 
-    return /* await */ this.update(user)
+    return user
   }
 
-  async get (properties) {
-    const users = await super.get(properties)
+  _unserialize ({ ...user }) {
+    user.groups = parseProp('user', user, 'groups', [])
+    user.preferences = parseProp('user', user, 'preferences', {})
 
-    // Deserializes
-    forEach(users, user => {
-      user.groups = parseProp('user', user, 'groups', [])
-      user.preferences = parseProp('user', user, 'preferences', {})
-    })
-
-    return users
+    return user
   }
 }

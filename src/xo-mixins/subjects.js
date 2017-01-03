@@ -275,9 +275,12 @@ export default class {
     })
 
     // Remove the group from all its users.
+    const removeGroup = user => ({
+      ...user,
+      groups: removeFromArraySet(user.groups, id),
+    })
     forEach(group.users, userId => {
-      this.getUser(userId)
-        .then(user => this._removeGroupFromUser(id, user))
+      this._users.patch(removeGroup, userId)
         ::ignoreErrors()
     })
   }

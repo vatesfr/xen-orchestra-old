@@ -1,6 +1,8 @@
+import synchronized from 'decorator-synchronized'
+import { BaseError } from 'make-error'
+import { EventEmitter } from 'events'
+
 import Model from './model'
-import {BaseError} from 'make-error'
-import {EventEmitter} from 'events'
 import {
   isArray,
   isObject,
@@ -51,10 +53,11 @@ export default class Collection extends EventEmitter {
         throw error
       }
 
-      return model.properties
+      return this._serialize(model.properties)
     }, models)
 
     models = await this._add(models, opts)
+    map(models, model => this._unserialize(model), models)
     this.emit('add', models)
 
     return array
@@ -80,7 +83,15 @@ export default class Collection extends EventEmitter {
         : {}
     }
 
-    return /* await */ this._get(properties)
+    const items = await this._get(properties)
+    return map(items, item => this._unserialize(item), items)
+  }
+
+  @synchronized
+  async patch (fn, properties) {
+    const models = await this.get(properties)
+    map(models, fn, models)
+    return this.update(models)
   }
 
   async remove (ids) {
@@ -122,15 +133,22 @@ export default class Collection extends EventEmitter {
         throw error
       }
 
-      return model.properties
+      return this._serialize(model.properties)
     }, models)
 
     models = await this._update(models)
+    map(models, model => this._unserialize(model), models)
     this.emit('update', models)
 
     return array
       ? models
       : new this.Model(models[0])
+  }
+
+  save (item) {
+    console.warn('deprecated, use patch() instead')
+
+    return this.update(item)
   }
 
   // Methods to override in implementations.
@@ -168,5 +186,13 @@ export default class Collection extends EventEmitter {
     return models.length
       ? models[0]
       : null
+  }
+
+  _serialize (properties) {
+    return properties
+  }
+
+  _unserialize (properties) {
+    return properties
   }
 }
