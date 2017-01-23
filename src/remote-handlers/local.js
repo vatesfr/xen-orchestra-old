@@ -1,13 +1,12 @@
 import fs from 'fs-promise'
-import startsWith from 'lodash/startsWith'
 import {
-  dirname,
-  resolve
+  dirname
 } from 'path'
 
 import RemoteHandlerAbstract from './abstract'
 import {
-  noop
+  noop,
+  resolveSubpath
 } from '../utils'
 
 export default class LocalHandler extends RemoteHandlerAbstract {
@@ -20,16 +19,7 @@ export default class LocalHandler extends RemoteHandlerAbstract {
   }
 
   _getFilePath (file) {
-    const realPath = this._getRealPath()
-    const parts = [realPath]
-    if (file) {
-      parts.push(file)
-    }
-    const path = resolve.apply(null, parts)
-    if (!startsWith(path, realPath)) {
-      throw new Error('Remote path is unavailable')
-    }
-    return path
+    return resolveSubpath(this._getRealPath(), file)
   }
 
   async _sync () {
