@@ -1,5 +1,5 @@
 import Client from 'jsonrpc-websocket-client'
-import http from 'http'
+import request from 'superagent'
 
 const UPDATER_URL = 'localhost'
 const WS_PORT = 9001
@@ -121,13 +121,8 @@ class XoServerCloud {
       throw new Error('cannot get download token')
     }
 
-    return http.get({
-      hostname: UPDATER_URL,
-      port: HTTP_PORT,
-      headers: {
-        Authorization: `Bearer ${downloadToken}`
-      }
-    })
+    return request.get(`${UPDATER_URL}:${HTTP_PORT}`)
+      .set('Authorization', `Bearer ${downloadToken}`)
   }
 }
 
