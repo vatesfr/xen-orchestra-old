@@ -1,5 +1,7 @@
 import Client from 'jsonrpc-websocket-client'
+import eventToPromise from 'event-to-promise'
 import request from 'superagent'
+import { PassThrough } from 'stream'
 
 const UPDATER_URL = 'localhost'
 const WS_PORT = 9001
@@ -121,8 +123,14 @@ class XoServerCloud {
       throw new Error('cannot get download token')
     }
 
-    return request.get(`${UPDATER_URL}:${HTTP_PORT}`)
+    const req = request.get(`${UPDATER_URL}:${HTTP_PORT}/`)
       .set('Authorization', `Bearer ${downloadToken}`)
+
+    const pt = new PassThrough()
+    req.pipe(pt)
+    pt.length = (await eventToPromise(req, 'response')).headers['content-length']
+
+    return pt
   }
 }
 
