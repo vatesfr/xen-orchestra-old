@@ -9,26 +9,9 @@ const HTTP_PORT = 9002
 
 // ===================================================================
 
-export const configurationSchema = {}
-
-// ===================================================================
-
-const bind = (fn, thisArg) => function __bound__ () {
-  return fn.apply(thisArg, arguments)
-}
-
-// ===================================================================
-
 class XoServerCloud {
   constructor ({ xo }) {
-    this._set = bind(xo.defineProperty, xo)
     this._xo = xo
-
-    this._getCatalog = bind(this._getCatalog, this)
-    this._getNamespaces = bind(this._getNamespaces, this)
-    this._registerResource = bind(this._registerResource, this)
-    this._getNamespaceCatalog = bind(this._getNamespaceCatalog, this)
-    this._requestResource = bind(this._requestResource, this)
 
    // Defined in configure().
     this._conf = null
@@ -40,17 +23,33 @@ class XoServerCloud {
   }
 
   async load () {
-    this._unsetGetCatalog = this._set('getResourceCatalog', this._getCatalog)
-    this._unsetRegisterResource = this._set('registerResource', this._registerResource)
-    this._unsetRequestResource = this._set('requestResource', this._requestResource)
+    const getResourceCatalog = () => this._getCatalog()
+    getResourceCatalog.description = 'Get the list of all available resources'
+    getResourceCatalog.permission = 'admin'
+
+    const registerResource = ({ namespace }) => this._registerResource(namespace)
+    registerResource.description = 'Register a resource via cloud plugin'
+    registerResource.params = {
+      namespace: {
+        type: 'string'
+      }
+    }
+    registerResource.permission = 'admin'
+
+    this._unsetApiMethods = this._xo.addApiMethods({
+      cloud: {
+        getResourceCatalog,
+        registerResource
+      }
+    })
+    this._unsetRequestResource = this._xo.defineProperty('requestResource', this._requestResource, this)
 
     this._updater = new Client(`${UPDATER_URL}:${WS_PORT}`)
     this._updater.open()
   }
 
   unload () {
-    this._unsetGetCatalog()
-    this._unsetRegisterResource()
+    this._unsetApiMethods()
     this._unsetRequestResource()
   }
 
@@ -126,6 +125,7 @@ class XoServerCloud {
     const req = request.get(`${UPDATER_URL}:${HTTP_PORT}/`)
       .set('Authorization', `Bearer ${downloadToken}`)
 
+    // Impossible to pipe the response directly: https://github.com/visionmedia/superagent/issues/1187
     const pt = new PassThrough()
     req.pipe(pt)
     pt.length = (await eventToPromise(req, 'response')).headers['content-length']
