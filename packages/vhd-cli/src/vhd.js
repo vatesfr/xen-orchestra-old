@@ -18,6 +18,7 @@ const HARD_DISK_TYPE_DIFFERENCING = 4
 const HARD_DISK_TYPE_DYNAMIC = 3
 const HARD_DISK_TYPE_FIXED = 2
 const PLATFORM_CODE_NONE = 0
+const UNUSED_BLOCK = 0xFFFFFFFF
 export const SECTOR_SIZE = 512
 
 /* eslint-enable no-unused vars */
@@ -60,7 +61,7 @@ const FOOTER_SIZE = fuFooter.size
 
 const fuHeader = fu.struct([
   fu.char('cookie', 8),
-  fu.struct('dataOffset', [
+  fu.struct('dataOffset', [ // currently unused
     fu.uint32('high'),
     fu.uint32('low'),
   ]),
@@ -248,10 +249,23 @@ export default class Vhd {
 
     this._blockAllocationTable = null
     this._blockBitmapSize = null
+    this._firstBlock = null
     this._footer = null
     this._header = null
+    this._lastBlock = null
     this._parent = null
     this._sectorsPerBlock = null
+    this.size = null
+  }
+
+  _readStream (begin, length) {
+    assert(begin >= 0)
+    assert(length > 0)
+
+    return this._handler.createReadStream(this._path, {
+      end: begin + length - 1,
+      start: begin,
+    })
   }
 
   // Read `length` bytes starting from `begin`.
@@ -260,13 +274,7 @@ export default class Vhd {
   //   number of written bytes is returned;
   // - otherwise: a new buffer is allocated and returned.
   _read (begin, length, buf, offset) {
-    assert(begin >= 0)
-    assert(length > 0)
-
-    return this._handler.createReadStream(this._path, {
-      end: begin + length - 1,
-      start: begin,
-    }).then(buf
+    return this._readStream(begin, length).then(buf
       ? stream => streamToExistingBuffer(stream, buf, offset, (offset || 0) + length)
       : streamToNewBuffer
     )
@@ -296,7 +304,7 @@ export default class Vhd {
     assert(block < this._header.maxTableEntries)
 
     const blockAddr = this._blockAllocationTable[block]
-    if (blockAddr !== 0xFFFFFFFF) {
+    if (blockAddr !== UNUSED_BLOCK) {
       return blockAddr * SECTOR_SIZE
     }
   }
@@ -332,6 +340,8 @@ export default class Vhd {
     this._header = header
     this.size = uint32ToUint64(this._footer.currentSize)
 
+    await this.readBlockAllocationTable()
+
     if (footer.diskType === HARD_DISK_TYPE_DIFFERENCING) {
       const parent = new Vhd(
         this._handler,
@@ -350,10 +360,44 @@ export default class Vhd {
     const { maxTableEntries, tableOffset } = this._header
     const fuTable = fu.uint32(maxTableEntries)
 
-    this._blockAllocationTable = unpack(
+    const bat = this._blockAllocationTable = unpack(
       fuTable,
       await this._read(uint32ToUint64(tableOffset), fuTable.size)
     )
+
+    this._firstBlock = this._lastBlock = null
+
+    let i = 0
+    let first, firstSector, last, lastSector
+
+    // get first allocated block for initialization
+    while ((firstSector = bat[i]) === UNUSED_BLOCK) {
+      i += 1
+
+      if (i === maxTableEntries) {
+        return
+      }
+    }
+    lastSector = firstSector
+    first = last = i
+
+    while (i < maxTableEntries) {
+      const sector = bat[i]
+      if (sector !== UNUSED_BLOCK) {
+        if (sector < firstSector) {
+          first = i
+          firstSector = sector
+        } else if (sector > lastSector) {
+          last = i
+          lastSector = sector
+        }
+      }
+
+      ++i
+    }
+
+    this._firstBlock = first
+    this._lastBlock = last
   }
 
   // -----------------------------------------------------------------

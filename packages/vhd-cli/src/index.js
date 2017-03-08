@@ -1,19 +1,42 @@
 #!/usr/bin/env node
 
+import chalk from 'chalk'
 import execPromise from 'exec-promise'
+import humanFormat from 'human-format'
+import { forEach } from 'lodash'
 import { RemoteHandlerLocal } from '@nraynaud/xo-fs'
-import { resolve } from 'path'
 
 import Vhd from './vhd'
 
+const keyFmt = chalk.bold
+const valueFmt = chalk.reset
+
+const sizeFmt = bytes => humanFormat(bytes, { scale: 'binary' })
+
 execPromise(async args => {
-  const vhd = new Vhd(
-    new RemoteHandlerLocal({ url: 'file:///' }),
-    resolve(args[0])
-  )
+  const handler = new RemoteHandlerLocal({ url: 'file:///' })
+  const wln = str => {
+    str && process.stdout.write(str)
+    process.stdout.write('\n')
+  }
 
-  await vhd.readHeaderAndFooter()
+  wln()
+  for (const path of args) {
+    wln(path)
 
-  console.log(vhd._header)
-  console.log(vhd._footer)
+    const vhd = new Vhd(handler, path)
+
+    await vhd.readHeaderAndFooter()
+
+    forEach({
+      Date: new Date(vhd._footer.timestamp * 1e3),
+      Size: sizeFmt(vhd.size),
+      Type: vhd._footer.diskType,
+      'Block size': sizeFmt(vhd._header.blockSize),
+      'Max blocks': humanFormat(vhd._header.maxTableEntries, { scale: 'binary', unit: '' }),
+    }, (value, key) => {
+      wln(`${keyFmt(key)}: ${valueFmt(value)}`)
+    })
+    wln()
+  }
 })
