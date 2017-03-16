@@ -251,7 +251,7 @@
           </tr>
           {{#each topVms.cpu}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} %</td>
           </tr>
@@ -262,7 +262,7 @@
           </tr>
           {{#each topVms.ram}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} GiB</td>
           </tr>
@@ -272,7 +272,7 @@
           </tr>
           {{#each topVms.diskRead}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} MiB</td>
           </tr>
@@ -282,7 +282,7 @@
           </tr>
           {{#each topVms.diskWrite}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} MiB</td>
           </tr>
@@ -292,7 +292,7 @@
           </tr>
           {{#each topVms.netReception}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} KiB</td>
           </tr>
@@ -302,7 +302,7 @@
           </tr>
           {{#each topVms.netTransmission}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} KiB</td>
           </tr>
@@ -406,7 +406,7 @@
           </tr>
           {{#each topHosts.cpu}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} %</td>
           </tr>
@@ -416,7 +416,7 @@
           </tr>
           {{#each topHosts.ram}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} GiB</td>
           </tr>
@@ -426,7 +426,7 @@
           </tr>
           {{#each topHosts.load}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} </td>
           </tr>
@@ -436,7 +436,7 @@
           </tr>
           {{#each topHosts.netReception}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} KiB</td>
           </tr>
@@ -446,7 +446,7 @@
           </tr>
           {{#each topHosts.netTransmission}}
           <tr>
-            <td>{{this.uuid}}</td>
+            <td>{{shortUUID this.uuid}}</td>
             <td>{{this.name}}</td>
             <td>{{this.value}} KiB</td>
           </tr>
@@ -466,7 +466,7 @@
             </tr>
             {{#each topAllocation}}
               <tr>
-                <td>{{this.uuid}}</td>
+                <td>{{shortUUID this.uuid}}</td>
                 <td>{{this.name}}</td>
                 <td>{{this.size}} GiB</td>
               </tr>
@@ -482,7 +482,7 @@
               {{#if hostsMissingPatches}}
                 {{#each hostsMissingPatches}}
                 <tr>
-                  <td>{{this.uuid}}</td>
+                  <td>{{shortUUID this.uuid}}</td>
                   <td>{{this.name}}</td>
                   <td>{{this.patches}}</td>
                 </tr>
@@ -536,7 +536,7 @@
             {{#if vmsRessourcesEvolution.added}}
               {{#each vmsRessourcesEvolution.added}}
                 <tr>
-                  <td>{{this.uuid}}</td>
+                  <td>{{shortUUID this.uuid}}</td>
                   <td>{{this.name}}</td>
                 </tr>
               {{/each}}
@@ -556,7 +556,7 @@
             {{#if vmsRessourcesEvolution.removed}}
               {{#each vmsRessourcesEvolution.removed}}
               <tr>
-                <td>{{this.uuid}}</td>
+                <td>{{shortUUID this.uuid}}</td>
                 <td>{{this.name}}</td>
               </tr>
               {{/each}}
@@ -575,7 +575,7 @@
             {{#if hostsRessourcesEvolution.added}}
               {{#each hostsRessourcesEvolution.added}}
               <tr>
-                <td>{{this.uuid}}</td>
+                <td>{{shortUUID this.uuid}}</td>
                 <td>{{this.name}}</td>
               </tr>
               {{/each}}
@@ -594,7 +594,7 @@
             {{#if hostsRessourcesEvolution.removed}}
               {{#each hostsRessourcesEvolution.removed}}
               <tr>
-                <td>{{this.uuid}}</td>
+                <td>{{shortUUID this.uuid}}</td>
                 <td>{{this.name}}</td>
               </tr>
               {{/each}}
