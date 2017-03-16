@@ -267,15 +267,6 @@
             <td>{{this.value}} GiB</td>
           </tr>
           {{/each}}
-        </table>
-        <table>
-          <caption>3rd top usages</caption>
-          <tr>
-            <th></th>
-            <th>UUID</th>
-            <th>Name</th>
-            <th>Value</th>
-          </tr>
           <tr>
             <td rowspan='{{math topVms.diskRead.length "+" 1}}' class="tableHeader">Disk read</td>
           </tr>
@@ -430,15 +421,6 @@
             <td>{{this.value}} GiB</td>
           </tr>
           {{/each}}
-        </table>
-        <table>
-          <caption>3rd top usages</caption>
-          <tr>
-            <th></th>
-            <th>UUID</th>
-            <th>Name</th>
-            <th>Value</th>
-          </tr>
           <tr>
             <td rowspan='{{math topHosts.load.length "+" 1}}' class="tableHeader">Load average</td>
           </tr>
@@ -476,7 +458,7 @@
     <div class="page">
       <div class="top">
         <table>
-          <caption>3rd most allocated space </caption>
+          <caption>Most used storages </caption>
             <tr>
               <th>UUID</th>
               <th>Name</th>
@@ -507,8 +489,7 @@
                 {{/each}}
               {{else}}
                 <tr>
-                  <td colspan="2">All hosts are updated!</td>
-                  <td>No patch!</td>
+                  <td colspan="3">All hosts are updated!</td>
                 </tr>
               {{/if}}
           </table>
