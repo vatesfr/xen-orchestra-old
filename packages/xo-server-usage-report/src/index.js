@@ -203,6 +203,7 @@ function getHostsStats ({
     const hostStats = await xo.getXapiHostStats(host, 'days')
     return {
       uuid: host.uuid.split('-')[0],
+      name: host.name_label,
       cpu: computeDoubleMean(hostStats.stats.cpus),
       ram: computeMean(hostStats.stats.memoryUsed) / gibPower,
       load: computeMean(hostStats.stats.load),
@@ -239,7 +240,16 @@ function computeGlobalHostsStats ({
   hostsStats,
   xo
 }) {
-  const allHosts = concat(map(hostsStats, 'uuid'), map(haltedHosts, host => host.uuid.split('-')[0]))
+  const allHosts = concat(
+    map(hostsStats, host => ({
+      uuid: host.uuid,
+      name: host.name
+    })),
+    map(haltedHosts, host => ({
+      uuid: host.uuid.split('-')[0],
+      name: host.name_label
+    }))
+  )
 
   return assign(computeMeans(hostsStats, ['cpu', 'ram', 'load', 'netReception', 'netTransmission']), {
     number: allHosts.length,
@@ -268,6 +278,7 @@ function getMostAllocatedSpaces ({
   return map(
     orderBy(disks, ['size'], ['desc']).slice(0, 3), disk => ({
       uuid: disk.uuid.split('-')[0],
+      name: disk.name_label,
       size: round(disk.size / gibPower, 2)
     }))
 }
@@ -281,6 +292,7 @@ function getHostsMissingPatches ({
     if (hostsPatches.length > 0) {
       return {
         uuid: host.uuid,
+        name: host.name,
         patches: map(hostsPatches, patch => 'name')
       }
     }

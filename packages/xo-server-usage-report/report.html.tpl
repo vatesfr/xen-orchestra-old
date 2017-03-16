@@ -406,6 +406,7 @@
           <tr>
             <th></th>
             <th>UUID</th>
+            <th>Name</th>
             <th>Value</th>
           </tr>
           <tr>
@@ -414,6 +415,7 @@
           {{#each topHosts.cpu}}
           <tr>
             <td>{{this.uuid}}</td>
+            <td>{{this.name}}</td>
             <td>{{this.value}} %</td>
           </tr>
           {{/each}}
@@ -423,6 +425,7 @@
           {{#each topHosts.ram}}
           <tr>
             <td>{{this.uuid}}</td>
+            <td>{{this.name}}</td>
             <td>{{this.value}} GiB</td>
           </tr>
           {{/each}}
@@ -432,6 +435,7 @@
           <tr>
             <th></th>
             <th>UUID</th>
+            <th>Name</th>
             <th>Value</th>
           </tr>
           <tr>
@@ -440,6 +444,7 @@
           {{#each topHosts.load}}
           <tr>
             <td>{{this.uuid}}</td>
+            <td>{{this.name}}</td>
             <td>{{this.value}} </td>
           </tr>
           {{/each}}
@@ -449,6 +454,7 @@
           {{#each topHosts.netReception}}
           <tr>
             <td>{{this.uuid}}</td>
+            <td>{{this.name}}</td>
             <td>{{this.value}} KiB</td>
           </tr>
           {{/each}}
@@ -458,6 +464,7 @@
           {{#each topHosts.netTransmission}}
           <tr>
             <td>{{this.uuid}}</td>
+            <td>{{this.name}}</td>
             <td>{{this.value}} KiB</td>
           </tr>
           {{/each}}
@@ -471,11 +478,13 @@
           <caption>3rd most allocated space </caption>
             <tr>
               <th>UUID</th>
+              <th>Name</th>
               <th>value</th>
             </tr>
             {{#each topAllocation}}
               <tr>
                 <td>{{this.uuid}}</td>
+                <td>{{this.name}}</td>
                 <td>{{this.size}} GiB</td>
               </tr>
              {{/each}}
@@ -484,18 +493,20 @@
              <caption>Hosts missing patches</caption>
             <tr>
             <th>UUID</th>
+            <th>Name</th>
             <th>Patches</th>
             </tr>
               {{#if hostsMissingPatches}}
                 {{#each hostsMissingPatches}}
                 <tr>
                   <td>{{this.uuid}}</td>
+                  <td>{{this.name}}</td>
                   <td>{{this.patches}}</td>
                 </tr>
                 {{/each}}
               {{else}}
                 <tr>
-                  <td>All hosts are updated!</td>
+                  <td colspan="2">All hosts are updated!</td>
                   <td>No patch!</td>
                 </tr>
               {{/if}}
@@ -577,16 +588,18 @@
             <caption>Added Hosts</caption>
             <tr>
               <th>UUID</th>
+              <th>Name</th>
             </tr>
             {{#if hostsRessourcesEvolution.added}}
               {{#each hostsRessourcesEvolution.added}}
               <tr>
-                <td>{{this}}</td>
+                <td>{{this.uuid}}</td>
+                <td>{{this.name}}</td>
               </tr>
               {{/each}}
             {{else}}
               <tr>
-                <td>No added Hosts!</td>
+                <td colspan="2">No added Hosts!</td>
               </tr>
             {{/if}}
           </table>
@@ -594,16 +607,18 @@
             <caption>Removed Hosts</caption>
             <tr>
               <th>UUID</th>
+              <th>Name</th>
             </tr>
             {{#if hostsRessourcesEvolution.removed}}
               {{#each hostsRessourcesEvolution.removed}}
               <tr>
-                <td>{{this}}</td>
+                <td>{{this.uuid}}</td>
+                <td>{{this.name}}</td>
               </tr>
               {{/each}}
             {{else}}
               <tr>
-                <td>No removed Hosts!</td>
+                <td colspan="2">No removed Hosts!</td>
               </tr>
             {{/if}}
           </table>
