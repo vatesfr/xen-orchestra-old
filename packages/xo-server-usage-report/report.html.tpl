@@ -10,6 +10,7 @@
 
     .page:not(:first-child) {
       page-break-before: always;
+      margin-top: 40px;
     }
 
     table {
@@ -88,7 +89,7 @@
 
     .top table{
       margin: auto;
-      margin-top: 60px;
+      margin-top: 20px;
       width: 400px;
     }
 
@@ -146,7 +147,7 @@
 
       <table class ="global">
         <tr>
-          <td id="title" rowspan="13">VM</td>
+          <td id="title" rowspan="13">VMs</td>
         </tr>
         <tr>
           <td>Number:</td>
@@ -322,7 +323,7 @@
     <div class="page">
       <table class ="global">
         <tr>
-          <td id="title" rowspan="13">Host</td>
+          <td id="title" rowspan="13">Hosts</td>
         </tr>
         <tr>
           <td>Number:</td>
