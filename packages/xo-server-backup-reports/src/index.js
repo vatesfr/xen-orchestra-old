@@ -101,7 +101,7 @@ class BackupReportsXoPlugin {
         failedBackupsText.push(
           `### VM : ${vm ? vm.name_label : 'not found'}`,
           `  - UUID: ${vm ? vm.uuid : call.params.id}`,
-          `  - Status: Failure\n  - Error: ${call.error.message}`,
+          `  - Error: ${call.error.message}`,
           `  - Start time: ${String(start)}`,
           `  - End time: ${String(end)}`,
           `  - Duration: ${duration}`,
@@ -115,7 +115,6 @@ class BackupReportsXoPlugin {
         successfulBackupText.push(
           `### VM : ${vm.name_label}`,
           `  - UUID: ${vm.uuid}`,
-          '  - Status: Success',
           `  - Start time: ${String(start)}`,
           `  - End time: ${String(end)}`,
           `  - Duration: ${duration}`,
