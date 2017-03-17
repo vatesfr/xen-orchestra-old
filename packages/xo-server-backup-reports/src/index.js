@@ -145,7 +145,7 @@ class BackupReportsXoPlugin {
 
     nCalls - nSuccess > 0 && failedBackupsText.unshift([`## Failed backups:`])
     nSuccess > 0 && successfulBackupText.unshift([`## Successful backups:`])
-    const text = nCalls - nSuccess > 0 ? failedBackupsText.concat(successfulBackupText) : successfulBackupText
+    const text = failedBackupsText.concat(successfulBackupText)
 
     // Global status.
     text.unshift([
