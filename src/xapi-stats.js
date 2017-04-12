@@ -56,6 +56,27 @@ async function getServerTimestamp (xapi, host) {
 // Stats
 // -------------------------------------------------------------------
 
+function getNewSrStats () {
+  return {
+    iops: {
+      tota: [],
+      read: [],
+      write: []
+    },
+    throughput: {
+      total: [],
+      read: [],
+      write: []
+    },
+    latency: {
+      read: [],
+      write: []
+    },
+    read: [],
+    write: []
+  }
+}
+
 function getNewHostStats () {
   return {
     cpus: [],
@@ -90,6 +111,29 @@ function getNewVmStats () {
 // -------------------------------------------------------------------
 // Stats legends
 // -------------------------------------------------------------------
+
+function getNewSrLegends () {
+  return {
+    iops: {
+      total: [],
+      read: [],
+      write: []
+    },
+    throughput: {
+      total: [],
+      read: [],
+      write: []
+    },
+    latency: {
+      read: [],
+      write: []
+    },
+    read: [],
+    write: [],
+    inflight: [],
+    iowait: []
+  }
+}
 
 function getNewHostLegends () {
   return {
@@ -141,6 +185,37 @@ function parseOneHostLegend (hostLegend, type, index) {
   }
 }
 
+// Compute one legend line for one sr
+function parseOneSrLegend (srLegend, srId, type, index) {
+  let shortId = srId.substr(4)
+
+  if (type === `inflight_${shortId}`) {
+    srLegend.inflight = index
+  } else if (type === `iowait_${shortId}`) {
+    srLegend.iowait = index
+  } else if (type === `iops_total_${shortId}`) {
+    srLegend.iops.total = index
+  } else if (type === `iops_read_${shortId}`) {
+    srLegend.iops.read = index
+  } else if (type === `iops_write_${shortId}`) {
+    srLegend.iops.write = index
+  } else if (type === `io_throughput_total_${shortId}`) {
+    srLegend.throughput.total = index
+  } else if (type === `io_throughput_read_${shortId}`) {
+    srLegend.throughput.read = index
+  } else if (type === `io_throughput_write_${shortId}`) {
+    srLegend.throughput.write = index
+  } else if (type === `read_latency_${shortId}`) {
+    srLegend.latency.read = index
+  } else if (type === `write_latency_${shortId}`) {
+    srLegend.latency.write = index
+  } else if (type === `read_${shortId}`) {
+    srLegend.read = index
+  } else if (type === `write_${shortId}`) {
+    srLegend.write = index
+  }
+}
+
 // Compute one legend line for one vm
 function parseOneVmLegend (vmLegend, type, index) {
   let resReg
@@ -169,6 +244,7 @@ function parseOneVmLegend (vmLegend, type, index) {
 // Compute Stats Legends for host and vms from RRD update
 function parseLegends (json) {
   const hostLegends = getNewHostLegends()
+  const srLegends = getNewSrLegends()
   const vmsLegends = {}
 
   json.meta.legend.forEach((value, index) => {
@@ -182,6 +258,7 @@ function parseLegends (json) {
 
     if (name !== 'vm') {
       parseOneHostLegend(hostLegends, type, index)
+      parseOneSrLegend(srLegends, '4524f20f', type, index)
     } else {
       if (vmsLegends[uuid] === undefined) {
         vmsLegends[uuid] = getNewVmLegends()
@@ -191,7 +268,7 @@ function parseLegends (json) {
     }
   })
 
-  return [hostLegends, vmsLegends]
+  return [hostLegends, vmsLegends, srLegends]
 }
 
 export default class XapiStats {
@@ -405,14 +482,24 @@ export default class XapiStats {
     return this._hosts[host.address][step].endTimestamp
   }
 
-  _getPoints (hostname, step, vmId) {
+  _getPoints (hostname, step, vmId, srId) {
     const hostStats = this._hosts[hostname][step]
 
-    // Return host points
-    if (vmId === undefined) {
+    // Return host points if it's just for a host
+    if (vmId === undefined && srId === undefined) {
       return {
         interval: step,
         ...hostStats,
+      }
+    }
+
+    // Return SR points if it's a SR
+    if (vmId === undefined) {
+      const srsStats = this._srs[hostname][step]
+      return {
+        interval: step,
+        endTimestamp: hostStats.endTimestamp,
+        stats: (srsStats && srsStats[srId]) || getNewSrStats()
       }
     }
 
@@ -426,7 +513,7 @@ export default class XapiStats {
     }
   }
 
-  async _getAndUpdatePoints (xapi, host, vmId, granularity) {
+  async _getAndUpdatePoints (xapi, host, vmId, srId, granularity) {
     // Get granularity to use
     const step = (granularity === undefined || granularity === 0)
       ? RRD_STEP_SECONDS : RRD_STEP_FROM_STRING[granularity]
@@ -445,7 +532,7 @@ export default class XapiStats {
 
     if (this._hosts[hostname][step] !== undefined &&
         this._hosts[hostname][step].localTimestamp + step > getCurrentTimestamp()) {
-      return this._getPoints(hostname, step, vmId)
+      return this._getPoints(hostname, step, vmId, srId)
     }
 
     // Check if we are in the good interval, use this._hosts[hostname][step].localTimestamp
@@ -514,7 +601,7 @@ export default class XapiStats {
     this._hosts[hostname][step].endTimestamp = json.meta.end
     this._hosts[hostname][step].localTimestamp = getCurrentTimestamp()
 
-    return this._getPoints(hostname, step, vmId)
+    return this._getPoints(hostname, step, vmId, srId)
   }
 
   // -------------------------------------------------------------------
@@ -524,10 +611,22 @@ export default class XapiStats {
   // So, data can be changed by a parallel call on this functions
   // It is forbidden to modify the returned data
 
+  // Return SR stats
+  async getSrPoints (xapi, srId, granularity) {
+    const sr = xapi.getObject(srId)
+    const host = sr.$PBDs[0]
+
+    if (!host) {
+      throw new Error(`SR ${srId} is disconnected or host could not be found.`)
+    }
+
+    return this._getAndUpdatePoints(xapi, host, undefined, sr, granularity)
+  }
+
   // Return host stats
   async getHostPoints (xapi, hostId, granularity) {
     const host = xapi.getObject(hostId)
-    return this._getAndUpdatePoints(xapi, host, undefined, granularity)
+    return this._getAndUpdatePoints(xapi, host, undefined, undefined, granularity)
   }
 
   // Return vms stats
@@ -539,6 +638,6 @@ export default class XapiStats {
       throw new Error(`VM ${vmId} is halted or host could not be found.`)
     }
 
-    return this._getAndUpdatePoints(xapi, host, vm.uuid, granularity)
+    return this._getAndUpdatePoints(xapi, host, vm.uuid, undefined, granularity)
   }
 }

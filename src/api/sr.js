@@ -53,10 +53,10 @@ scan.resolve = {
 const srIsBackingHa = (sr) => sr.$pool.ha_enabled && some(sr.$pool.$ha_statefiles, f => f.$SR === sr)
 
 export async function stats ({SR, granularity}) {
-  await this.getXapiSrStats(SR, granularity)
+  return this.getXapiSrStats(SR, granularity)
 }
 
-stats.description = 'returns statistics about the VM'
+stats.description = 'returns statistics about the SR'
 
 stats.params = {
   id: { type: 'string' },

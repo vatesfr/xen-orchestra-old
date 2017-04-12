@@ -396,6 +396,11 @@ export default class {
     return servers
   }
 
+  getXapiSrStats (sr, granularity) {
+    const xapi = this.getXapi(sr)
+    return this._stats.getSrPoints(xapi, sr._xapiId, granularity)
+  }
+
   getXapiVmStats (vm, granularity) {
     const xapi = this.getXapi(vm)
     return this._stats.getVmPoints(xapi, vm._xapiId, granularity)
