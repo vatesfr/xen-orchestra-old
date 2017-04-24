@@ -1,3 +1,4 @@
+import assert from 'assert'
 import ms from 'ms'
 import { noSuchObject } from 'xo-common/api-errors'
 import { ignoreErrors } from 'promise-toolbox'
@@ -93,26 +94,25 @@ export default class {
   async _authenticateUser (credentials) {
     for (const provider of this._providers) {
       try {
-        // A provider can return:
-        // - `null` if the user could not be authenticated
-        // - the identifier of the authenticated user
-        // - an object with a property `username` containing the name
-        //   of the authenticated user
         const result = await provider(credentials)
 
         // No match.
-        if (!result) {
+        if (result == null) {
           continue
         }
 
-        return result.username
-          ? await this._xo.registerUser(undefined, result.username)
-          : await this._xo.getUser(result)
+        // the provider has returned an id, do not look any further
+        if (typeof result === 'string') {
+          return this._xo.getUser(result)
+        }
+
+        assert(typeof result.username === 'string')
+        return this._xo.registerUser(undefined, result.username)
       } catch (error) {
         // DEPRECATED: Authentication providers may just throw `null`
         // to indicate they could not authenticate the user without
         // any special errors.
-        if (error) console.error(error.stack || error)
+        if (error !== null) console.warn(error.stack || error)
       }
     }
 

@@ -209,10 +209,13 @@ export default class {
   }
 
   // Get or create a user associated with an auth provider.
+  //
+  // TODO: a user should be able to use multiple auth providers.
   async registerUser (provider, name) {
     const user = await this.getUserByName(name, true)
-    if (user) {
-      if (user._provider !== provider) {
+    if (user != null) {
+      // user should not have a password
+      if (user.pw_hash !== undefined) {
         throw new Error(`the name ${name} is already taken`)
       }
 
