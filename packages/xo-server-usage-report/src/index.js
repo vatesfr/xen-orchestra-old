@@ -289,7 +289,7 @@ async function getHostsMissingPatches ({
   runningHosts,
   xo
 }) {
-  const hostsMissingPatches = Promise.all(map(runningHosts, async host => {
+  const hostsMissingPatches = await Promise.all(map(runningHosts, async host => {
     const hostsPatches = await xo.getXapi(host).listMissingPoolPatchesOnHost(host.uuid)
     if (hostsPatches.length > 0) {
       return {
@@ -299,7 +299,7 @@ async function getHostsMissingPatches ({
       }
     }
   }))
-  return filter(await hostsMissingPatches, host => host !== undefined)
+  return filter(hostsMissingPatches, host => host !== undefined)
 }
 
 function getAllUsersEmail (users) {
