@@ -290,7 +290,7 @@ async function getHostsMissingPatches ({
   xo
 }) {
   const hostsMissingPatches = await Promise.all(map(runningHosts, async host => {
-    const hostsPatches = await xo.getXapi(host).listMissingPoolPatchesOnHost(host.uuid)
+    const hostsPatches = await xo.getXapi(host).listMissingPoolPatchesOnHost(host._xapiId)
     if (hostsPatches.length > 0) {
       return {
         uuid: host.uuid,
