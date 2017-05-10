@@ -1,3 +1,4 @@
+import humanFormat from 'human-format'
 import moment from 'moment'
 import { forEach } from 'lodash'
 
@@ -58,8 +59,9 @@ class BackupReportsXoPlugin {
   }
 
   _listener (status) {
-    let nSuccess = 0
+    let globalAverage = 0
     let nCalls = 0
+    let nSuccess = 0
     let reportOnFailure
     let reportWhen
 
@@ -114,12 +116,26 @@ class BackupReportsXoPlugin {
           `[ ${vm ? vm.name_label : 'undefined'} : ${call.error.message} ]`
         )
       } else if (!reportOnFailure) {
+        let averageText
+
+        if (
+          (typeof call.returnedValue === 'number' || typeof call.returnedValue === 'object') && // support old xo-server version
+          (call.method === 'vm.rollingBackup' || call.method === 'vm.rollingDeltaBackup')
+        ) {
+          const dataLength = call.returnedValue.length || call.returnedValue
+          const average = dataLength / moment.duration(end - start).asSeconds()
+          globalAverage += average
+
+          averageText = `  - Average: ${humanFormat(average, { scale: 'binary', unit: 'B/S' })}`
+        }
+
         successfulBackupText.push(
           `### VM : ${vm.name_label}`,
           `  - UUID: ${vm.uuid}`,
           `  - Start time: ${String(start)}`,
           `  - End time: ${String(end)}`,
           `  - Duration: ${duration}`,
+          averageText,
           ''
         )
       }
@@ -146,18 +162,20 @@ class BackupReportsXoPlugin {
       .replace(/([A-Z])/g, ' $1').replace(/^./, letter => letter.toUpperCase()) // humanize
     const tag = status.calls[Object.keys(status.calls)[0]].params.tag
 
-    nCalls - nSuccess > 0 && failedBackupsText.unshift([`## Failed backups:`])
-    nSuccess > 0 && !reportOnFailure && successfulBackupText.unshift([`## Successful backups:`])
+    nCalls - nSuccess > 0 && failedBackupsText.unshift(`## Failed backups: \u274C`, '')
+    nSuccess > 0 && !reportOnFailure && successfulBackupText.unshift(`## Successful backups: \u2705`, '')
     const text = failedBackupsText.concat(successfulBackupText)
+    const globalAverageText = globalAverage !== 0 ? `  - Average: ${humanFormat(globalAverage / nSuccess, { scale: 'binary', unit: 'B/S' })}` : undefined
 
     // Global status.
     text.unshift(
-      `## Global status for "${tag}" (${method}): ${globalSuccess ? 'Success' : 'Fail'}`,
+      `## Global status for "${tag}" (${method}): ${globalSuccess ? 'Success \u2705' : 'Fail \u274C'}`,
       `  - Start time: ${String(start)}`,
       `  - End time: ${String(end)}`,
       `  - Duration: ${duration}`,
       `  - Successful backed up VM number: ${nSuccess}`,
       `  - Failed backed up VM: ${nCalls - nSuccess}`,
+      globalAverageText,
       ''
     )
 
