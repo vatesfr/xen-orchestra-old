@@ -120,7 +120,7 @@ class BackupReportsXoPlugin {
         let transmissionSpeed
 
         if (call.method === 'vm.rollingBackup' || call.method === 'vm.rollingDeltaBackup') {
-          const dataLength = call.returnedValue.size || call.returnedValue
+          const dataLength = call.returnedValue.size
           transmissionSpeed = dataLength / moment.duration(end - start).asSeconds()
           globalTransmissionSpeed += transmissionSpeed
         }
