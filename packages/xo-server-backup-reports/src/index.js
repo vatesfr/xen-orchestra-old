@@ -59,15 +59,16 @@ class BackupReportsXoPlugin {
   }
 
   _listener (status) {
-    let globalAverage = 0
+    let globalTransmissionSpeed = 0
     let nCalls = 0
     let nSuccess = 0
     let reportOnFailure
     let reportWhen
 
     const failedBackupsText = []
-    const successfulBackupText = []
+    const globalText = []
     const nagiosText = []
+    const successfulBackupText = []
 
     forEach(status.calls, call => {
       // Ignore call if it's not a Backup a Snapshot or a Disaster Recovery.
@@ -116,17 +117,12 @@ class BackupReportsXoPlugin {
           `[ ${vm ? vm.name_label : 'undefined'} : ${call.error.message} ]`
         )
       } else if (!reportOnFailure) {
-        let averageText
+        let transmissionSpeed
 
-        if (
-          (typeof call.returnedValue === 'number' || typeof call.returnedValue === 'object') && // support old xo-server version
-          (call.method === 'vm.rollingBackup' || call.method === 'vm.rollingDeltaBackup')
-        ) {
-          const dataLength = call.returnedValue.length || call.returnedValue
-          const average = dataLength / moment.duration(end - start).asSeconds()
-          globalAverage += average
-
-          averageText = `  - Average: ${humanFormat(average, { scale: 'binary', unit: 'B/S' })}`
+        if (call.method === 'vm.rollingBackup' || call.method === 'vm.rollingDeltaBackup') {
+          const dataLength = call.returnedValue.size || call.returnedValue
+          transmissionSpeed = dataLength / moment.duration(end - start).asSeconds()
+          globalTransmissionSpeed += transmissionSpeed
         }
 
         successfulBackupText.push(
@@ -134,10 +130,10 @@ class BackupReportsXoPlugin {
           `  - UUID: ${vm.uuid}`,
           `  - Start time: ${String(start)}`,
           `  - End time: ${String(end)}`,
-          `  - Duration: ${duration}`,
-          averageText,
-          ''
+          `  - Duration: ${duration}`
         )
+        if (transmissionSpeed !== undefined) successfulBackupText.push(`  - Transmission speed: ${humanFormat(transmissionSpeed, { scale: 'binary', unit: 'B/S' })}`)
+        successfulBackupText.push('')
       }
     })
 
@@ -161,24 +157,25 @@ class BackupReportsXoPlugin {
     method = method.slice(method.indexOf('.') + 1)
       .replace(/([A-Z])/g, ' $1').replace(/^./, letter => letter.toUpperCase()) // humanize
     const tag = status.calls[Object.keys(status.calls)[0]].params.tag
+    const failIcon = '\u274C'
+    const successIcon = '\u2705'
 
-    nCalls - nSuccess > 0 && failedBackupsText.unshift(`## Failed backups: \u274C`, '')
-    nSuccess > 0 && !reportOnFailure && successfulBackupText.unshift(`## Successful backups: \u2705`, '')
-    const text = failedBackupsText.concat(successfulBackupText)
-    const globalAverageText = globalAverage !== 0 ? `  - Average: ${humanFormat(globalAverage / nSuccess, { scale: 'binary', unit: 'B/S' })}` : undefined
+    if (nCalls - nSuccess > 0) failedBackupsText.unshift(`## Failed backups: ${failIcon}`, '')
+    if (nSuccess > 0 && !reportOnFailure) successfulBackupText.unshift(`## Successful backups: ${successIcon}`, '')
 
     // Global status.
-    text.unshift(
-      `## Global status for "${tag}" (${method}): ${globalSuccess ? 'Success \u2705' : 'Fail \u274C'}`,
+    globalText.push(
+      `## Global status for "${tag}" (${method}): ${globalSuccess ? `Success ${successIcon}` : `Fail ${failIcon}`}`,
       `  - Start time: ${String(start)}`,
       `  - End time: ${String(end)}`,
       `  - Duration: ${duration}`,
       `  - Successful backed up VM number: ${nSuccess}`,
-      `  - Failed backed up VM: ${nCalls - nSuccess}`,
-      globalAverageText,
-      ''
+      `  - Failed backed up VM: ${nCalls - nSuccess}`
     )
+    if (globalTransmissionSpeed !== 0) globalText.push(`  - Transmission speed: ${humanFormat(globalTransmissionSpeed / nSuccess, { scale: 'binary', unit: 'B/S' })}`)
+    globalText.push('')
 
+    const text = globalText.concat(failedBackupsText.concat(successfulBackupText))
     const markdown = text.join('\n')
     const markdownNagios = nagiosText.join(' ')
 
