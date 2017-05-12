@@ -172,8 +172,6 @@ class BackupReportsXoPlugin {
       successfulBackupText.unshift(`## Successful backups: ${successIcon}`, '')
     }
 
-    const globalText = []
-
     // Global status.
     const globalText = [
       `## Global status for "${tag}" (${method}): ${globalSuccess ? `Success ${successIcon}` : `Fail ${failIcon}`}`,
