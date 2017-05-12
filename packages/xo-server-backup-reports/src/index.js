@@ -59,14 +59,13 @@ class BackupReportsXoPlugin {
   }
 
   _listener (status) {
-    let globalTransmissionSpeed = 0
+    let globalAverageSpeed = 0
     let nCalls = 0
     let nSuccess = 0
     let reportOnFailure
     let reportWhen
 
     const failedBackupsText = []
-    const globalText = []
     const nagiosText = []
     const successfulBackupText = []
 
@@ -117,12 +116,12 @@ class BackupReportsXoPlugin {
           `[ ${vm ? vm.name_label : 'undefined'} : ${call.error.message} ]`
         )
       } else if (!reportOnFailure) {
-        let transmissionSpeed
+        let averageSpeed
 
         if (call.method === 'vm.rollingBackup' || call.method === 'vm.rollingDeltaBackup') {
           const dataLength = call.returnedValue.size
-          transmissionSpeed = dataLength / moment.duration(end - start).asSeconds()
-          globalTransmissionSpeed += transmissionSpeed
+          averageSpeed = dataLength / moment.duration(end - start).asSeconds()
+          globalAverageSpeed += averageSpeed
         }
 
         successfulBackupText.push(
@@ -132,7 +131,13 @@ class BackupReportsXoPlugin {
           `  - End time: ${String(end)}`,
           `  - Duration: ${duration}`
         )
-        if (transmissionSpeed !== undefined) successfulBackupText.push(`  - Transmission speed: ${humanFormat(transmissionSpeed, { scale: 'binary', unit: 'B/S' })}`)
+
+        if (averageSpeed !== undefined) {
+          successfulBackupText.push(`  - Average speed: ${humanFormat(
+            averageSpeed,
+            { scale: 'binary', unit: 'B/S' }
+          )}`)
+        }
         successfulBackupText.push('')
       }
     })
@@ -160,8 +165,14 @@ class BackupReportsXoPlugin {
     const failIcon = '\u274C'
     const successIcon = '\u2705'
 
-    if (nCalls - nSuccess > 0) failedBackupsText.unshift(`## Failed backups: ${failIcon}`, '')
-    if (nSuccess > 0 && !reportOnFailure) successfulBackupText.unshift(`## Successful backups: ${successIcon}`, '')
+    if (nCalls - nSuccess > 0) {
+      failedBackupsText.unshift(`## Failed backups: ${failIcon}`, '')
+    }
+    if (nSuccess > 0 && !reportOnFailure) {
+      successfulBackupText.unshift(`## Successful backups: ${successIcon}`, '')
+    }
+
+    const globalText = []
 
     // Global status.
     globalText.push(
@@ -172,7 +183,12 @@ class BackupReportsXoPlugin {
       `  - Successful backed up VM number: ${nSuccess}`,
       `  - Failed backed up VM: ${nCalls - nSuccess}`
     )
-    if (globalTransmissionSpeed !== 0) globalText.push(`  - Transmission speed: ${humanFormat(globalTransmissionSpeed / nSuccess, { scale: 'binary', unit: 'B/S' })}`)
+    if (globalAverageSpeed !== 0) {
+      globalText.push(`  - Average speed: ${humanFormat(
+        globalAverageSpeed / nSuccess,
+        { scale: 'binary', unit: 'B/S' }
+      )}`)
+    }
     globalText.push('')
 
     const text = globalText.concat(failedBackupsText.concat(successfulBackupText))
