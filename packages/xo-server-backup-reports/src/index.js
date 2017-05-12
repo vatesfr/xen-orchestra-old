@@ -175,14 +175,14 @@ class BackupReportsXoPlugin {
     const globalText = []
 
     // Global status.
-    globalText.push(
+    const globalText = [
       `## Global status for "${tag}" (${method}): ${globalSuccess ? `Success ${successIcon}` : `Fail ${failIcon}`}`,
       `  - Start time: ${String(start)}`,
       `  - End time: ${String(end)}`,
       `  - Duration: ${duration}`,
       `  - Successful backed up VM number: ${nSuccess}`,
       `  - Failed backed up VM: ${nCalls - nSuccess}`
-    )
+    ]
     if (globalAverageSpeed !== 0) {
       globalText.push(`  - Average speed: ${humanFormat(
         globalAverageSpeed / nSuccess,
@@ -191,8 +191,7 @@ class BackupReportsXoPlugin {
     }
     globalText.push('')
 
-    const text = globalText.concat(failedBackupsText.concat(successfulBackupText))
-    const markdown = text.join('\n')
+    const markdown = globalText.concat(failedBackupsText, successfulBackupText)).join('\n')
     const markdownNagios = nagiosText.join(' ')
 
     // TODO : Handle errors when `sendEmail` isn't present. (Plugin dependencies)
