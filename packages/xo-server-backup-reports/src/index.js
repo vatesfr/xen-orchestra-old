@@ -189,7 +189,7 @@ class BackupReportsXoPlugin {
     }
     globalText.push('')
 
-    const markdown = globalText.concat(failedBackupsText, successfulBackupText)).join('\n')
+    const markdown = globalText.concat(failedBackupsText, successfulBackupText).join('\n')
     const markdownNagios = nagiosText.join(' ')
 
     // TODO : Handle errors when `sendEmail` isn't present. (Plugin dependencies)
