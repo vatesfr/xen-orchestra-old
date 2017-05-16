@@ -34,8 +34,9 @@ export const configurationSchema = {
 const ICON_FAILURE = '\u274C'
 const ICON_SUCCESS = '\u2705'
 
-const formatDate = (timezone, timestamp) =>
-  moment(timestamp).tz(timezone).format()
+const formatDate = (timezone, timestamp) => timezone !== undefined
+  ? moment(timestamp).tz(timezone).format()
+  : moment(timestamp).format()
 
 const formatDuration = milliseconds =>
   moment.duration(milliseconds).humanize()
