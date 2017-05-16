@@ -1,5 +1,5 @@
 import humanFormat from 'human-format'
-import moment from 'moment'
+import moment from 'moment-timezone'
 import { forEach, startCase } from 'lodash'
 
 export const configurationSchema = {
@@ -34,8 +34,8 @@ export const configurationSchema = {
 const ICON_FAILURE = '\u274C'
 const ICON_SUCCESS = '\u2705'
 
-const formatDate = timestamp =>
-  moment(timestamp).format()
+const formatDate = (timezone, timestamp) =>
+  moment(timestamp).tz(timezone).format()
 
 const formatDuration = milliseconds =>
   moment.duration(milliseconds).humanize()
@@ -83,7 +83,10 @@ class BackupReportsXoPlugin {
   }
 
   _listener (status) {
-    const { calls } = status
+    const {
+      calls,
+      timezone
+    } = status
     const callIds = Object.keys(calls)
 
     const nCalls = callIds.length
@@ -120,6 +123,8 @@ class BackupReportsXoPlugin {
     const nagiosText = []
     const successfulBackupText = []
 
+    const _formatDate = formatDate.bind(null, timezone)
+
     forEach(calls, call => {
       const { id = call.params.vm } = call.params
 
@@ -134,8 +139,8 @@ class BackupReportsXoPlugin {
         `### ${vm !== undefined ? vm.name_label : 'VM not found'}`,
         '',
         `- UUID: ${vm !== undefined ? vm.uuid : id}`,
-        `- Start time: ${formatDate(start)}`,
-        `- End time: ${formatDate(end)}`,
+        `- Start time: ${_formatDate(start)}`,
+        `- End time: ${_formatDate(end)}`,
         `- Duration: ${formatDuration(duration)}`
       ]
 
@@ -190,8 +195,8 @@ class BackupReportsXoPlugin {
         nFailures === 0 ? `Success ${ICON_SUCCESS}` : `Failure ${ICON_FAILURE}`
       }`,
       '',
-      `- Start time: ${formatDate(start)}`,
-      `- End time: ${formatDate(end)}`,
+      `- Start time: ${_formatDate(start)}`,
+      `- End time: ${_formatDate(end)}`,
       `- Duration: ${formatDuration(duration)}`,
       `- Successes: ${nSuccesses}`,
       `- Failures: ${nFailures}`
