@@ -34,9 +34,9 @@ export const configurationSchema = {
 const ICON_FAILURE = '\u274C'
 const ICON_SUCCESS = '\u2705'
 
-const formatDate = (timezone, timestamp) => timezone !== undefined
-  ? moment(timestamp).tz(timezone).format()
-  : moment(timestamp).format()
+const createDateFormater = timezone => timezone !== undefined
+  ? timestamp => moment(timestamp).tz(timezone).format()
+  : timestamp => moment(timestamp).format()
 
 const formatDuration = milliseconds =>
   moment.duration(milliseconds).humanize()
@@ -124,7 +124,7 @@ class BackupReportsXoPlugin {
     const nagiosText = []
     const successfulBackupText = []
 
-    const _formatDate = formatDate.bind(null, timezone)
+    const formatDate = createDateFormater(timezone)
 
     forEach(calls, call => {
       const { id = call.params.vm } = call.params
@@ -140,8 +140,8 @@ class BackupReportsXoPlugin {
         `### ${vm !== undefined ? vm.name_label : 'VM not found'}`,
         '',
         `- UUID: ${vm !== undefined ? vm.uuid : id}`,
-        `- Start time: ${_formatDate(start)}`,
-        `- End time: ${_formatDate(end)}`,
+        `- Start time: ${formatDate(start)}`,
+        `- End time: ${formatDate(end)}`,
         `- Duration: ${formatDuration(duration)}`
       ]
 
@@ -196,8 +196,8 @@ class BackupReportsXoPlugin {
         nFailures === 0 ? `Success ${ICON_SUCCESS}` : `Failure ${ICON_FAILURE}`
       }`,
       '',
-      `- Start time: ${_formatDate(start)}`,
-      `- End time: ${_formatDate(end)}`,
+      `- Start time: ${formatDate(start)}`,
+      `- End time: ${formatDate(end)}`,
       `- Duration: ${formatDuration(duration)}`,
       `- Successes: ${nSuccesses}`,
       `- Failures: ${nFailures}`
