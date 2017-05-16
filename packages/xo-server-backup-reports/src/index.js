@@ -84,10 +84,7 @@ class BackupReportsXoPlugin {
   }
 
   _listener (status) {
-    const {
-      calls,
-      timezone
-    } = status
+    const { calls } = status
     const callIds = Object.keys(calls)
 
     const nCalls = callIds.length
@@ -124,7 +121,7 @@ class BackupReportsXoPlugin {
     const nagiosText = []
     const successfulBackupText = []
 
-    const formatDate = createDateFormater(timezone)
+    const formatDate = createDateFormater(status.timezone)
 
     forEach(calls, call => {
       const { id = call.params.vm } = call.params
