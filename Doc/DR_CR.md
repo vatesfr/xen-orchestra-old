@@ -1,25 +1,25 @@
-#Disaster recovery
+# Disaster recovery
 Copies a VM to a target  pool, with a tagged name, and removes the oldest VMs with the same tag from this pool, according to retention.
 
-##how it works ?
+## how it works ?
 ![](DR.png) 
 
-#continuous Replication
+# continuous Replication
 Delta copies a VM to a target  pool.
 
-##how it works ?
+## how it works ?
 ![](CR.png) 
 
 # Revert implementation (Normal backup):
 ## Xo-Server:
-###API/job
+### API/job
 **Method:** revert
 **Input:** jobId
 **Body:**
 ```javascript
 revertJob(jobId)
 ```
-###xo-mixins/jobs
+### xo-mixins/jobs
 **Method:** revertJob
 **Input:** jobId
 **Body:**
@@ -80,6 +80,6 @@ sourceXapi.deleteVm(vm)::pCatch(noop)
 ))
 ```
 ## Xo-Web:
-###Backup/Overview
+### Backup/Overview
 Adding a revert button to a DR/CR job (normal backup)
-![](/home/badr/Téléchargements/revertButton.png) 
+![](revertButton.png) 
