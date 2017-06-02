@@ -1,16 +1,14 @@
 import Client, { createBackoff } from 'jsonrpc-websocket-client'
-import eventToPromise from 'event-to-promise'
-import request from 'superagent'
-import { PassThrough } from 'stream'
 
-const UPDATER_URL = 'localhost'
+const UPDATER_HOSTNAME = 'localhost'
 const WS_PORT = 9001
 const HTTP_PORT = 9002
 
 // ===================================================================
 
 class XoServerCloud {
-  constructor ({ xo }) {
+  constructor ({ httpRequest, xo }) {
+    this._httpRequest = httpRequest
     this._xo = xo
 
     // Defined in configure().
@@ -44,7 +42,7 @@ class XoServerCloud {
     })
     this._unsetRequestResource = this._xo.defineProperty('requestResource', this._requestResource, this)
 
-    const updater = this._updater = new Client(`${UPDATER_URL}:${WS_PORT}`)
+    const updater = this._updater = new Client(`${UPDATER_HOSTNAME}:${WS_PORT}`)
     const connect = () => updater.open(createBackoff()).catch(
       error => {
         console.error('xo-server-cloud: fail to connect to updater', error)
@@ -134,15 +132,13 @@ class XoServerCloud {
       throw new Error('cannot get download token')
     }
 
-    const req = request.get(`${UPDATER_URL}:${HTTP_PORT}/`)
-      .set('Authorization', `Bearer ${downloadToken}`)
-
-    // Impossible to pipe the response directly: https://github.com/visionmedia/superagent/issues/1187
-    const pt = new PassThrough()
-    req.pipe(pt)
-    pt.length = (await eventToPromise(req, 'response')).headers['content-length']
-
-    return pt
+    return this._httpRequest({
+      headers: {
+        authorization: `Bearer ${downloadToken}`,
+      },
+      hostname: UPDATER_HOSTNAME,
+      port: HTTP_PORT,
+    })
   }
 }
 
