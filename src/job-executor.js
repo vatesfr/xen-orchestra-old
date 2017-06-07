@@ -13,6 +13,7 @@ import {
 
 import { crossProduct } from './math'
 import {
+  createRawObject,
   serializeError,
   thunkToArray,
 } from './utils'
@@ -71,6 +72,7 @@ export function resolveParamsVector (paramsVector) {
 
 export default class JobExecutor {
   constructor (xo) {
+    this._runningJob = createRawObject()
     this.xo = xo
 
     // The logger is not available until Xo has started.

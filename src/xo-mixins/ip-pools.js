@@ -16,7 +16,7 @@ import { fromCallback } from 'promise-toolbox'
 
 import {
   forEach,
-  generateUnsecureToken,
+  generateId,
   isEmpty,
   lightSet,
   mapToArray,
@@ -295,7 +295,7 @@ export default class IpPools {
   async _generateId () {
     let id
     do {
-      id = generateUnsecureToken(8)
+      id = generateId()
     } while (await this._store.has(id))
     return id
   }

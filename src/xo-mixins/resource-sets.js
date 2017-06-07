@@ -10,7 +10,7 @@ import {
 
 import {
   forEach,
-  generateUnsecureToken,
+  generateId,
   isObject,
   lightSet,
   map,
@@ -95,7 +95,7 @@ export default class {
   async _generateId () {
     let id
     do {
-      id = generateUnsecureToken(8)
+      id = generateId()
     } while (await this._store.has(id))
     return id
   }

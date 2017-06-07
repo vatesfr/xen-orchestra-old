@@ -1,5 +1,5 @@
 import deferrable from 'golike-defer'
-import { catchPlus as pCatch, ignoreErrors } from 'promise-toolbox'
+import { cancelable, catchPlus as pCatch, ignoreErrors } from 'promise-toolbox'
 import {
   find,
   gte,
@@ -9,8 +9,8 @@ import {
 } from 'lodash'
 
 import {
+  asyncMap,
   forEach,
-  mapToArray,
   parseSize,
 } from '../../utils'
 
@@ -27,8 +27,9 @@ const XEN_VIDEORAM_VALUES = [1, 2, 4, 8, 16]
 
 export default {
   // TODO: clean up on error.
+  @cancelable
   @deferrable
-  async createVm ($defer, templateId, {
+  async createVm ($defer, $cancelToken, templateId, {
     name_label, // eslint-disable-line camelcase
     nameLabel = name_label, // eslint-disable-line camelcase
 
@@ -61,7 +62,7 @@ export default {
     const template = this.getObject(templateId)
 
     // Clones the template.
-    const vmRef = await this[clone ? '_cloneVm' : '_copyVm'](template, nameLabel)
+    const vmRef = await this[clone ? '_cloneVm' : '_copyVm']($cancelToken, template, nameLabel)
     $defer.onFailure(() => this.deleteVm(vmRef))
 
     // TODO: copy BIOS strings?
@@ -72,7 +73,7 @@ export default {
 
     // Creates the VDIs and executes the initial steps of the
     // installation.
-    await this.call('VM.provision', vmRef)
+    await this.callAsync($cancelToken, 'VM.provision', vmRef)
 
     let vm = await this._getOrWaitObject(vmRef)
 
@@ -127,7 +128,7 @@ export default {
     }
 
     // Modify existing (previous template) disks if necessary
-    existingVdis && await Promise.all(mapToArray(existingVdis, async ({ size, $SR: srId, ...properties }, userdevice) => {
+    existingVdis && await asyncMap(existingVdis, async ({ size, $SR: srId, ...properties }, userdevice) => {
       const vbd = find(vm.$VBDs, { userdevice })
       if (!vbd) {
         return
@@ -135,25 +136,26 @@ export default {
       const vdi = vbd.$VDI
       await this._setObjectProperties(vdi, properties)
 
+      // if another SR is set, move it there
+      if (srId !== undefined) {
+        await this.moveVdi($cancelToken, vdi.$id, srId)
+      }
+
       // if the disk is bigger
       if (
         size != null &&
         size > vdi.virtual_size
       ) {
-        await this.resizeVdi(vdi.$id, size)
+        await this._resizeVdi($cancelToken, vdi, size)
       }
-      // if another SR is set, move it there
-      if (srId) {
-        await this.moveVdi(vdi.$id, srId)
-      }
-    }))
+    })
 
     // Creates the user defined VDIs.
     //
     // TODO: set vm.suspend_SR
     if (!isEmpty(vdis)) {
       const devices = await this.call('VM.get_allowed_VBD_devices', vm.$ref)
-      await Promise.all(mapToArray(vdis, (vdiDescription, i) => this.createVdi({
+      await asyncMap(vdis, (vdiDescription, i) => this.createVdi({
         name_description: vdiDescription.name_description,
         name_label: vdiDescription.name_label,
         size: vdiDescription.size,
@@ -167,16 +169,16 @@ export default {
           vdi,
           vm,
         }))
-      ))
+      )
     }
 
     // Destroys the VIFs cloned from the template.
-    await Promise.all(mapToArray(vm.$VIFs, vif => this._deleteVif(vif)))
+    await asyncMap(vm.$VIFs, vif => this._deleteVif(vif))
 
     // Creates the VIFs specified by the user.
     if (vifs) {
       const devices = await this.call('VM.get_allowed_VIF_devices', vm.$ref)
-      await Promise.all(mapToArray(vifs, (vif, index) => this._createVif(
+      await asyncMap(vifs, (vif, index) => this._createVif(
         vm,
         this.getObject(vif.network),
         {
@@ -187,7 +189,7 @@ export default {
           mac: vif.mac,
           mtu: vif.mtu,
         }
-      )))
+      ))
     }
 
     if (vgpuType !== undefined && gpuGroup !== undefined) {
@@ -196,8 +198,7 @@ export default {
 
     if (cloudConfig != null) {
       // Refresh the record.
-      await this.barrier('VM', vm.$ref)
-      vm = this.getObjectByRef(vm.$ref)
+      vm = await this.barrier('VM', vm.$ref)
 
       // Find the SR of the first VDI.
       let srRef

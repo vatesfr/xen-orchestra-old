@@ -225,6 +225,10 @@ export const firstDefined = function () {
 
 // -------------------------------------------------------------------
 
+export { default as generateId } from 'uuid/v4'
+
+// -------------------------------------------------------------------
+
 export const getUserPublicProperties = user => pick(
   user.properties || user,
   'id', 'email', 'groups', 'permission', 'preferences', 'provider'
@@ -246,8 +250,6 @@ export const getPseudoRandomBytes = n => {
 
   return bytes
 }
-
-export const generateUnsecureToken = (n = 32) => base64url(getPseudoRandomBytes(n))
 
 // Generate a secure random Base64 string.
 export const generateToken = (randomBytes => {
