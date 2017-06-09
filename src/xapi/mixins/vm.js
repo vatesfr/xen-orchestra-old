@@ -265,6 +265,16 @@ export default {
       }
     },
 
+    appliance: {
+      get: 'appliance',
+      set (value, vm) {
+        return this._setObjectProperty(
+          vm,
+          'appliance',
+          value ? this.getObject(value).$ref : NULL_REF
+        )
+      }
+    },
     CPUs: 'cpus',
     cpus: {
       addToLimits: true,
@@ -349,6 +359,8 @@ export default {
     nameDescription: true,
 
     nameLabel: true,
+
+    order: true,
 
     PV_args: true,
 

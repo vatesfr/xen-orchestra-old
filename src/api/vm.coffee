@@ -550,6 +550,10 @@ set.params = {
 
   affinityHost: { type: ['string', 'null'], optional: true }
 
+  order: { type: 'integer', optional: true }
+
+  applianceId: { type: 'string', optional: true }
+
   # Switch from Cirrus video adaptor to VGA adaptor
   vga: { type: 'string', optional: true }
 
@@ -560,6 +564,7 @@ set.params = {
 
 set.resolve = {
   VM: ['id', ['VM', 'VM-snapshot', 'VM-template'], 'administrate']
+  appliance: ['applianceId', ['VmGroup'], 'administrate']
 }
 
 exports.set = set

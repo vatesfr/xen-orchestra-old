@@ -268,6 +268,7 @@ const TRANSFORMS = {
 
       addresses: (guestMetrics && guestMetrics.networks) || null,
       affinityHost: link(obj, 'affinity'),
+      appliance: link(obj, 'appliance'),
       auto_poweron: Boolean(otherConfig.auto_poweron),
       boot: obj.HVM_boot_params,
       CPUs: {
@@ -338,6 +339,7 @@ const TRANSFORMS = {
       installTime: metrics && toTimestamp(metrics.install_time),
       name_description: obj.name_description,
       name_label: obj.name_label,
+      order: obj.order,
       other: otherConfig,
       os_version: (guestMetrics && guestMetrics.os_version) || null,
       power_state: obj.power_state,
@@ -433,6 +435,19 @@ const TRANSFORMS = {
     }
 
     return vm
+  },
+
+  // -----------------------------------------------------------------
+
+  vm_appliance (obj) {
+    return {
+      type: 'VmGroup',
+      name_description: obj.name_description,
+      name_label: obj.name_label,
+      allowed_operations: obj.allowed_operations,
+      $VMs: link(obj, 'VMs'),
+      current_operations: obj.current_operations
+    }
   },
 
   // -----------------------------------------------------------------
