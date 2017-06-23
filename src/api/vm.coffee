@@ -568,6 +568,20 @@ set.resolve = {
 }
 
 exports.set = set
+#---------------------------------------------------------------------
+
+removeAppliance = ({vm}) ->
+  return @getXapi(vm).call 'VM.set_appliance', vm._xapiRef, 'OpaqueRef:NULL'
+
+removeAppliance.params = {
+  id: { type: 'string' }
+}
+
+removeAppliance.resolve = {
+  vm: ['id', 'VM', 'operate']
+}
+
+exports.removeAppliance = removeAppliance
 
 #---------------------------------------------------------------------
 

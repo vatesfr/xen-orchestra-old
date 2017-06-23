@@ -271,7 +271,7 @@ export default {
         return this._setObjectProperty(
           vm,
           'appliance',
-          value ? this.getObject(value).$ref : NULL_REF
+          value !== undefined ? this.getObject(value).$ref : NULL_REF
         )
       }
     },
