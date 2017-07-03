@@ -345,7 +345,7 @@ export default class {
         let error = null
         if (redirectedToAnExistingServer) {
           error = {
-            code: 'SESSION_AUTHENTICATION_FAILED',
+            code: 'Connection failed',
             message: 'host is slave and the master is already connected'
           }
 
