@@ -1,4 +1,3 @@
-import Bluebird from 'bluebird'
 import { BaseError } from 'make-error'
 import { createPredicate } from 'value-matcher'
 import { timeout } from 'promise-toolbox'
@@ -13,6 +12,7 @@ import {
 
 import { crossProduct } from './math'
 import {
+  asyncMap,
   serializeError,
   thunkToArray,
 } from './utils'
@@ -130,7 +130,7 @@ export default class JobExecutor {
       timezone: schedule !== undefined ? schedule.timezone : undefined,
     }
 
-    await Bluebird.map(paramsFlatVector, params => {
+    await asyncMap(paramsFlatVector, params => {
       const runCallId = this._logger.notice(`Starting ${job.method} call. (${job.id})`, {
         event: 'jobCall.start',
         runJobId,
@@ -172,8 +172,6 @@ export default class JobExecutor {
           call.end = Date.now()
         }
       )
-    }, {
-      concurrency: 2,
     })
 
     connection.close()

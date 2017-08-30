@@ -1,4 +1,5 @@
 /* eslint-disable camelcase */
+import concurrency from 'limit-concurrency-decorator'
 import deferrable from 'golike-defer'
 import fatfs from 'fatfs'
 import synchronized from 'decorator-synchronized'
@@ -81,6 +82,10 @@ export const VDI_FORMAT_RAW = 'raw'
 
 export const IPV4_CONFIG_MODES = ['None', 'DHCP', 'Static']
 export const IPV6_CONFIG_MODES = ['None', 'DHCP', 'Static', 'Autoconf']
+
+// do not share the same limit for export and import, it could lead to
+// deadlocks
+const importLimit = concurrency(2)
 
 // ===================================================================
 
@@ -1207,6 +1212,7 @@ export default class Xapi extends XapiBase {
     })))
   }
 
+  @importLimit
   async _importVm (stream, sr, onVmCreation = undefined) {
     const taskRef = await this.createTask('VM import')
     const query = {}
@@ -1236,6 +1242,7 @@ export default class Xapi extends XapiBase {
     return vmRef
   }
 
+  @importLimit
   @deferrable
   async _importOvaVm ($defer, stream, {
     descriptionLabel,
@@ -1386,6 +1393,7 @@ export default class Xapi extends XapiBase {
     }
   }
 
+  @synchronized() // like @concurrency(1) but more efficient
   async _snapshotVm (vm, nameLabel = vm.name_label) {
     debug(`Snapshotting VM ${vm.name_label}${
       nameLabel !== vm.name_label
