@@ -64,7 +64,7 @@ async function rateLimitedRetry (action, shouldRetry, retryCount = 20) {
   return result
 }
 
-export async function getVolumeInfo ({ sr, infoType }) {
+export async function getVolumeInfo ({sr, infoType}) {
   const glusterEndpoint = this::_getGlusterEndpoint(sr)
 
   function parseHeal (parsed) {
@@ -98,23 +98,36 @@ export async function getVolumeInfo ({ sr, infoType }) {
     return {commandStatus: true, result: volume}
   }
 
+  function sshInfoType (command, handler) {
+    return async () => {
+      const cmdShouldRetry = result => !result['commandStatus'] && result.parsed && result.parsed['cliOutput']['opErrno'] === '30802'
+      const runCmd = async () => glusterCmd(glusterEndpoint, 'volume ' + command, true)
+      let commandResult = await rateLimitedRetry(runCmd, cmdShouldRetry)
+      return commandResult['commandStatus'] ? handler(commandResult.parsed['cliOutput']) : commandResult
+    }
+  }
+
+  function checkHosts () {
+    const xapi = this.getXapi(sr)
+    const data = xapi.xo.getData(sr, 'xosan_config')
+    const network = xapi.getObject(data.network)
+    const badPifs = filter(network.$PIFs, pif => pif.ip_configuration_mode !== 'Static')
+    return badPifs.map(pif => ({pif, host: pif.$host.$id}))
+  }
+
   const infoTypes = {
-    heal: {command: 'heal xosan info', handler: parseHeal},
-    status: {command: 'status xosan', handler: parseStatus},
-    statusDetail: {command: 'status xosan detail', handler: parseStatus},
-    statusMem: {command: 'status xosan mem', handler: parseStatus},
-    info: {command: 'info xosan', handler: parseInfo}
+    heal: sshInfoType('heal xosan info', parseHeal),
+    status: sshInfoType('status xosan', parseStatus),
+    statusDetail: sshInfoType('status xosan detail', parseStatus),
+    statusMem: sshInfoType('status xosan mem', parseStatus),
+    info: sshInfoType('info xosan', parseInfo),
+    hosts: this::checkHosts
   }
   const foundType = infoTypes[infoType]
   if (!foundType) {
     throw new Error('getVolumeInfo(): "' + infoType + '" is an invalid type')
   }
-
-  const cmdShouldRetry =
-      result => !result['commandStatus'] && result.parsed && result.parsed['cliOutput']['opErrno'] === '30802'
-  const runCmd = async () => glusterCmd(glusterEndpoint, 'volume ' + foundType.command, true)
-  let commandResult = await rateLimitedRetry(runCmd, cmdShouldRetry)
-  return commandResult['commandStatus'] ? foundType.handler(commandResult.parsed['cliOutput']) : commandResult
+  return foundType()
 }
 
 getVolumeInfo.description = 'info on gluster volume'
@@ -131,6 +144,26 @@ getVolumeInfo.params = {
 getVolumeInfo.resolve = {
   sr: ['sr', 'SR', 'administrate']
 }
+
+export async function fixHostNotInNetwork ({sr, host}) {
+
+}
+
+fixHostNotInNetwork.description = 'put host in xosan network'
+fixHostNotInNetwork.permission = 'admin'
+
+fixHostNotInNetwork.params = {
+  sr: {
+    type: 'string'
+  },
+  host: {
+    type: 'string'
+  }
+}
+fixHostNotInNetwork.resolve = {
+  sr: ['sr', 'SR', 'administrate']
+}
+
 function floor2048 (value) {
   return 2048 * Math.floor(value / 2048)
 }
@@ -373,6 +406,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
     const config = { server: ipAndHosts[0].address + ':/xosan', backupservers }
     const xosanSrRef = await xapi.call('SR.create', firstSr.$PBDs[0].$host.$ref, config, 0, 'XOSAN', 'XOSAN',
       'xosan', '', true, {})
+    debug('sr created')
     // we just forget because the cleanup actions are stacked in the $onFailure system
     $onFailure(() => xapi.forgetSr(xosanSrRef))
     if (arbiter) {
