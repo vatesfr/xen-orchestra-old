@@ -139,6 +139,8 @@ const promptByType = {
           defaultValue && defaultValue[name],
           subpath
         )
+      } else {
+        value[name] = schema.default
       }
     }
 
