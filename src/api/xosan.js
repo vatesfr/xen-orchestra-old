@@ -9,6 +9,7 @@ import {
   isArray,
   remove,
   filter,
+  find,
   range
 } from 'lodash'
 import {
@@ -21,6 +22,7 @@ const debug = createLogger('xo:xosan')
 const SSH_KEY_FILE = 'id_rsa_xosan'
 const NETWORK_PREFIX = '172.31.100.'
 const VM_FIRST_NUMBER = 101
+const HOST_FIRST_NUMBER = 1
 const GIGABYTE = 1024 * 1024 * 1024
 const XOSAN_VM_SYSTEM_DISK_SIZE = 10 * GIGABYTE
 const XOSAN_DATA_DISK_USEAGE_RATIO = 0.99
@@ -145,15 +147,35 @@ getVolumeInfo.resolve = {
   sr: ['sr', 'SR', 'administrate']
 }
 
-export async function fixHostNotInNetwork ({sr, host}) {
+function reconfigurePifIP (xapi, pif, newIP) {
+  xapi.call('PIF.reconfigure_ip', pif.$ref, 'Static', newIP, '255.255.255.0', NETWORK_PREFIX + '1', '')
+}
 
+
+// this function should probably become fixSomething(thingToFix, parmas)
+export async function fixHostNotInNetwork ({xosanSr, host}) {
+  const xapi = this.getXapi(xosanSr)
+  const data = xapi.xo.getData(xosanSr, 'xosan_config')
+  const network = xapi.getObject(data.network)
+  const usedAddresses = network.$PIFs.filter(pif => pif.ip_configuration_mode === 'Static').map(pif => pif.IP)
+  const pif = network.$PIFs.find(pif => pif.ip_configuration_mode !== 'Static' && pif.$host.$id === host)
+  if (pif) {
+    const newIP = _findIPAddressOutsideList(usedAddresses, HOST_FIRST_NUMBER)
+    reconfigurePifIP(xapi, pif, newIP)
+    await xapi.call('PIF.plug', pif.$ref)
+    const PBD = find(xosanSr.$PBDs, pbd => pbd.$host.$id === host)
+    if (PBD) {
+      await xapi.call('PBD.plug', PBD.$ref)
+    }
+    debug('host connected !')
+  }
 }
 
 fixHostNotInNetwork.description = 'put host in xosan network'
 fixHostNotInNetwork.permission = 'admin'
 
 fixHostNotInNetwork.params = {
-  sr: {
+  xosanSr: {
     type: 'string'
   },
   host: {
@@ -244,7 +266,7 @@ async function glusterCmd (glusterEndpoint, cmd, ignoreError = false) {
 }
 
 const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, xapi, pif, vlan) {
-  let hostIpLastNumber = 1
+  let hostIpLastNumber = HOST_FIRST_NUMBER
   const xosanNetwork = await xapi.createNetwork({
     name: 'XOSAN network',
     description: 'XOSAN network',
@@ -253,8 +275,7 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
     vlan: +vlan
   })
   $onFailure(() => xapi.deleteNetwork(xosanNetwork))
-  await Promise.all(xosanNetwork.$PIFs.map(pif => xapi.call('PIF.reconfigure_ip', pif.$ref, 'Static',
-    NETWORK_PREFIX + (hostIpLastNumber++), '255.255.255.0', NETWORK_PREFIX + '1', '')))
+  await Promise.all(xosanNetwork.$PIFs.map(pif => reconfigurePifIP(xapi, pif, NETWORK_PREFIX + (hostIpLastNumber++))))
   return xosanNetwork
 })
 
@@ -630,8 +651,7 @@ function _findAFreeIPAddress (nodes) {
   return _findIPAddressOutsideList(map(nodes, n => n.vm.ip))
 }
 
-function _findIPAddressOutsideList (reservedList) {
-  const vmIpLastNumber = 101
+function _findIPAddressOutsideList (reservedList, vmIpLastNumber = 101) {
   for (let i = vmIpLastNumber; i < 255; i++) {
     const candidate = NETWORK_PREFIX + i
     if (!reservedList.find(a => a === candidate)) {
