@@ -151,7 +151,6 @@ function reconfigurePifIP (xapi, pif, newIP) {
   xapi.call('PIF.reconfigure_ip', pif.$ref, 'Static', newIP, '255.255.255.0', NETWORK_PREFIX + '1', '')
 }
 
-
 // this function should probably become fixSomething(thingToFix, parmas)
 export async function fixHostNotInNetwork ({xosanSr, host}) {
   const xapi = this.getXapi(xosanSr)
