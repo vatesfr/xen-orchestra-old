@@ -375,8 +375,9 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
 
 export const createSR = defer.onFailure(async function ($onFailure, { template, pif, vlan, srs, glusterType,
   redundancy, brickSize, memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'}) {
-  const OPERATION_OBJECT = {operation: 'createSR', states:['configuringNetwork', 'importingVM', 'copyingVMs',
-    'configuringVMs', 'configuringGluster', 'creatingSR', 'scanningSR']}
+  const OPERATION_OBJECT = {operation: 'createSR',
+    states: ['configuringNetwork', 'importingVM', 'copyingVMs',
+      'configuringVMs', 'configuringGluster', 'creatingSR', 'scanningSR']}
   if (!this.requestResource) {
     throw new Error('requestResource is not a function')
   }
