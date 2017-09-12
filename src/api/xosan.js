@@ -20,7 +20,7 @@ import {
 const debug = createLogger('xo:xosan')
 
 const SSH_KEY_FILE = 'id_rsa_xosan'
-const NETWORK_PREFIX = '172.31.100.'
+const DEFAULT_NETWORK_PREFIX = '172.31.100.'
 const VM_FIRST_NUMBER = 101
 const HOST_FIRST_NUMBER = 1
 const GIGABYTE = 1024 * 1024 * 1024
@@ -30,9 +30,20 @@ const XOSAN_MAX_DISK_SIZE = 2093050 * 1024 * 1024 // a bit under 2To
 
 const CURRENTLY_CREATING_SRS = {}
 
+function getXosanConfig (xosansr, xapi = this.getXapi(xosansr)) {
+  const data = xapi.xo.getData(xosansr, 'xosan_config')
+  if (data.networkPrefix === undefined) {
+    // some xosan might have been created before this field was added
+    data.networkPrefix = DEFAULT_NETWORK_PREFIX
+    // fire and forget
+    xapi.xo.setData(xosansr, 'xosan_config', data)
+  }
+  return data
+}
+
 function _getIPToVMDict (xapi, sr) {
   const dict = {}
-  const data = xapi.xo.getData(sr, 'xosan_config')
+  const data = getXosanConfig(sr, xapi)
   if (data && data.nodes) {
     data.nodes.forEach(conf => {
       try {
@@ -47,7 +58,7 @@ function _getIPToVMDict (xapi, sr) {
 
 function _getGlusterEndpoint (sr) {
   const xapi = this.getXapi(sr)
-  const data = xapi.xo.getData(sr, 'xosan_config')
+  const data = getXosanConfig(sr, xapi)
   if (!data || !data.nodes) {
     return null
   }
@@ -111,7 +122,7 @@ export async function getVolumeInfo ({sr, infoType}) {
 
   function checkHosts () {
     const xapi = this.getXapi(sr)
-    const data = xapi.xo.getData(sr, 'xosan_config')
+    const data = getXosanConfig(sr, xapi)
     const network = xapi.getObject(data.network)
     const badPifs = filter(network.$PIFs, pif => pif.ip_configuration_mode !== 'Static')
     return badPifs.map(pif => ({pif, host: pif.$host.$id}))
@@ -148,13 +159,13 @@ getVolumeInfo.resolve = {
 }
 
 function reconfigurePifIP (xapi, pif, newIP) {
-  xapi.call('PIF.reconfigure_ip', pif.$ref, 'Static', newIP, '255.255.255.0', NETWORK_PREFIX + '1', '')
+  xapi.call('PIF.reconfigure_ip', pif.$ref, 'Static', newIP, '255.255.255.0', '', '')
 }
 
 // this function should probably become fixSomething(thingToFix, parmas)
 export async function fixHostNotInNetwork ({xosanSr, host}) {
   const xapi = this.getXapi(xosanSr)
-  const data = xapi.xo.getData(xosanSr, 'xosan_config')
+  const data = getXosanConfig(xosanSr, xapi)
   const network = xapi.getObject(data.network)
   const usedAddresses = network.$PIFs.filter(pif => pif.ip_configuration_mode === 'Static').map(pif => pif.IP)
   const pif = network.$PIFs.find(pif => pif.ip_configuration_mode !== 'Static' && pif.$host.$id === host)
@@ -264,7 +275,7 @@ async function glusterCmd (glusterEndpoint, cmd, ignoreError = false) {
   return result
 }
 
-const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, xapi, pif, vlan) {
+const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, xapi, pif, vlan, networkPrefix) {
   let hostIpLastNumber = HOST_FIRST_NUMBER
   const xosanNetwork = await xapi.createNetwork({
     name: 'XOSAN network',
@@ -274,7 +285,7 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
     vlan: +vlan
   })
   $onFailure(() => xapi.deleteNetwork(xosanNetwork))
-  await Promise.all(xosanNetwork.$PIFs.map(pif => reconfigurePifIP(xapi, pif, NETWORK_PREFIX + (hostIpLastNumber++))))
+  await Promise.all(xosanNetwork.$PIFs.map(pif => reconfigurePifIP(xapi, pif, networkPrefix + (hostIpLastNumber++))))
   return xosanNetwork
 })
 
@@ -363,7 +374,7 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
 }
 
 export const createSR = defer.onFailure(async function ($onFailure, { template, pif, vlan, srs, glusterType,
-  redundancy, brickSize, memorySize }) {
+  redundancy, brickSize, memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'}) {
   if (!this.requestResource) {
     throw new Error('requestResource is not a function')
   }
@@ -371,7 +382,8 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
   if (srs.length < 1) {
     return // TODO: throw an error
   }
-
+  // '172.31.100.0' -> '172.31.100.'
+  const networkPrefix = ipRange.split('.').slice(0, 3).join('.') + '.'
   let vmIpLastNumber = VM_FIRST_NUMBER
   const xapi = this.getXapi(srs[0])
   if (CURRENTLY_CREATING_SRS[xapi.pool.$id]) {
@@ -380,7 +392,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
 
   CURRENTLY_CREATING_SRS[xapi.pool.$id] = true
   try {
-    const xosanNetwork = await createNetworkAndInsertHosts(xapi, pif, vlan)
+    const xosanNetwork = await createNetworkAndInsertHosts(xapi, pif, vlan, networkPrefix)
     $onFailure(() => xapi.deleteNetwork(xosanNetwork))
     const sshKey = await getOrCreateSshKey(xapi)
     const srsObjects = map(srs, srId => xapi.getObject(srId))
@@ -405,16 +417,15 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
     let arbiter = null
     if (srs.length === 2) {
       const sr = firstSr
-      const arbiterIP = NETWORK_PREFIX + (vmIpLastNumber++)
+      const arbiterIP = networkPrefix + (vmIpLastNumber++)
       const arbiterVm = await xapi.copyVm(firstVM, sr)
       $onFailure(() => xapi.deleteVm(arbiterVm, true))
       arbiter = await _prepareGlusterVm(xapi, sr, arbiterVm, xosanNetwork, arbiterIP, {labelSuffix: '_arbiter',
-        increaseDataDisk: false,
-        memorySize})
+        increaseDataDisk: false, memorySize})
       arbiter.arbiter = true
     }
     const ipAndHosts = await asyncMap(vmsAndSrs, vmAndSr => _prepareGlusterVm(xapi, vmAndSr.sr, vmAndSr.vm, xosanNetwork,
-      NETWORK_PREFIX + (vmIpLastNumber++), {maxDiskSize: brickSize, memorySize}))
+      networkPrefix + (vmIpLastNumber++), {maxDiskSize: brickSize, memorySize}))
     const glusterEndpoint = { xapi, hosts: map(ipAndHosts, ih => ih.host), addresses: map(ipAndHosts, ih => ih.address) }
     await configureGluster(redundancy, ipAndHosts, glusterEndpoint, glusterType, arbiter)
     debug('xosan gluster volume started')
@@ -422,7 +433,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
     // one VM to give mount the volfile.
     // It is not possible to edit the device_config after the SR is created and this data is only used at mount time when rebooting
     // the hosts.
-    const backupservers = map(range(VM_FIRST_NUMBER, VM_FIRST_NUMBER + 10), ipLastByte => NETWORK_PREFIX + ipLastByte).join(':')
+    const backupservers = map(range(VM_FIRST_NUMBER, VM_FIRST_NUMBER + 10), ipLastByte => networkPrefix + ipLastByte).join(':')
     const config = { server: ipAndHosts[0].address + ':/xosan', backupservers }
     const xosanSrRef = await xapi.call('SR.create', firstSr.$PBDs[0].$host.$ref, config, 0, 'XOSAN', 'XOSAN',
       'xosan', '', true, {})
@@ -445,6 +456,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
       template: template,
       network: xosanNetwork.$id,
       type: glusterType,
+      networkPrefix,
       redundancy
     })
     debug('scanning new SR')
@@ -474,6 +486,12 @@ createSR.params = {
   },
   redundancy: {
     type: 'number'
+  },
+  memorySize: {
+    type: 'number', optional: true
+  },
+  ipRange: {
+    type: 'string', optional: true
   }
 }
 
@@ -508,7 +526,7 @@ async function replaceBrickOnSameVM (xosansr, previousBrick, newLvmSr, brickSize
   const previousIp = previousBrick.split(':')[0]
   brickSize = brickSize === undefined ? Infinity : brickSize
   const xapi = this.getXapi(xosansr)
-  const data = xapi.xo.getData(xosansr, 'xosan_config')
+  const data = this::getXosanConfig(xosansr)
   const nodes = data.nodes
   const nodeIndex = nodes.findIndex(node => node.vm.ip === previousIp)
   const glusterEndpoint = this::_getGlusterEndpoint(xosansr)
@@ -541,8 +559,9 @@ export async function replaceBrick ({ xosansr, previousBrick, newLvmSr, brickSiz
   const previousIp = previousBrick.split(':')[0]
   brickSize = brickSize === undefined ? Infinity : brickSize
   const xapi = this.getXapi(xosansr)
-  const nodes = xapi.xo.getData(xosansr, 'xosan_config').nodes
-  const newIpAddress = _findAFreeIPAddress(nodes)
+  const data = getXosanConfig(xosansr, xapi)
+  const nodes = data.nodes
+  const newIpAddress = _findAFreeIPAddress(nodes, data.networkPrefix)
   const nodeIndex = nodes.findIndex(node => node.vm.ip === previousIp)
   const stayingNodes = filter(nodes, (node, index) => index !== nodeIndex)
   const glusterEndpoint = { xapi,
@@ -550,7 +569,7 @@ export async function replaceBrick ({ xosansr, previousBrick, newLvmSr, brickSiz
     addresses: map(stayingNodes, node => node.vm.ip) }
   const previousVMEntry = _getIPToVMDict(xapi, xosansr)[previousBrick]
   const arbiter = nodes[nodeIndex].arbiter
-  let { data, newVM, addressAndHost } = await this::insertNewGlusterVm(xapi, xosansr, newLvmSr,
+  let { newVM, addressAndHost } = await this::insertNewGlusterVm(xapi, xosansr, newLvmSr,
     {labelSuffix: arbiter ? '_arbiter' : '', glusterEndpoint, newIpAddress, increaseDataDisk: !arbiter, brickSize})
   await glusterCmd(glusterEndpoint, `volume replace-brick xosan ${previousBrick} ${addressAndHost.brickName} commit force`)
   await glusterCmd(glusterEndpoint, 'peer detach ' + previousIp)
@@ -646,13 +665,13 @@ async function _importGlusterVM (xapi, template, lvmsrId) {
   return newVM
 }
 
-function _findAFreeIPAddress (nodes) {
-  return _findIPAddressOutsideList(map(nodes, n => n.vm.ip))
+function _findAFreeIPAddress (nodes, networkPrefix) {
+  return _findIPAddressOutsideList(map(nodes, n => n.vm.ip), networkPrefix)
 }
 
-function _findIPAddressOutsideList (reservedList, vmIpLastNumber = 101) {
+function _findIPAddressOutsideList (reservedList, networkPrefix, vmIpLastNumber = 101) {
   for (let i = vmIpLastNumber; i < 255; i++) {
-    const candidate = NETWORK_PREFIX + i
+    const candidate = networkPrefix + i
     if (!reservedList.find(a => a === candidate)) {
       return candidate
     }
@@ -667,9 +686,9 @@ const _median = arr => {
 
 const insertNewGlusterVm = defer.onFailure(async function ($onFailure, xapi, xosansr, lvmsrId, {labelSuffix = '',
   glusterEndpoint = null, ipAddress = null, increaseDataDisk = true, brickSize = Infinity}) {
-  const data = xapi.xo.getData(xosansr, 'xosan_config')
+  const data = getXosanConfig(xosansr, xapi)
   if (ipAddress === null) {
-    ipAddress = _findAFreeIPAddress(data.nodes)
+    ipAddress = _findAFreeIPAddress(data.nodes, data.networkPrefix)
   }
   const vmsMemories = []
   for (let node of data.nodes) {
@@ -702,13 +721,13 @@ export const addBricks = defer.onFailure(async function ($onFailure, {xosansr, l
   }
   CURRENTLY_CREATING_SRS[xapi.pool.$id] = true
   try {
-    const data = xapi.xo.getData(xosansr, 'xosan_config')
+    const data = getXosanConfig(xosansr, xapi)
     const usedAddresses = map(data.nodes, n => n.vm.ip)
     const glusterEndpoint = this::_getGlusterEndpoint(xosansr)
     const newAddresses = []
     const newNodes = []
     for (let newSr of lvmsrs) {
-      const ipAddress = _findIPAddressOutsideList(usedAddresses.concat(newAddresses))
+      const ipAddress = _findIPAddressOutsideList(usedAddresses.concat(newAddresses), data.networkPrefix)
       newAddresses.push(ipAddress)
       const {newVM, addressAndHost} = await this::insertNewGlusterVm(xapi, xosansr, newSr, { ipAddress, brickSize })
       $onFailure(() => glusterCmd(glusterEndpoint, 'peer detach ' + ipAddress, true))
@@ -759,7 +778,7 @@ export const removeBricks = defer.onFailure(async function ($onFailure, { xosans
   }
   CURRENTLY_CREATING_SRS[xapi.pool.$id] = true
   try {
-    const data = xapi.xo.getData(xosansr, 'xosan_config')
+    const data = getXosanConfig(xosansr, xapi)
     // IPV6
     const ips = map(bricks, b => b.split(':')[0])
     const glusterEndpoint = this::_getGlusterEndpoint(xosansr)
