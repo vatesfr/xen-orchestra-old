@@ -375,6 +375,8 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
 
 export const createSR = defer.onFailure(async function ($onFailure, { template, pif, vlan, srs, glusterType,
   redundancy, brickSize, memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'}) {
+  const OPERATION_OBJECT = {operation: 'createSR', states:['configuringNetwork', 'importingVM', 'copyingVMs',
+    'configuringVMs', 'configuringGluster', 'creatingSR', 'scanningSR']}
   if (!this.requestResource) {
     throw new Error('requestResource is not a function')
   }
@@ -390,7 +392,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
     throw new Error('createSR is already running for this pool')
   }
 
-  CURRENTLY_CREATING_SRS[xapi.pool.$id] = true
+  CURRENTLY_CREATING_SRS[xapi.pool.$id] = {...OPERATION_OBJECT, state: 'configuringNetwork'}
   try {
     const xosanNetwork = await createNetworkAndInsertHosts(xapi, pif, vlan, networkPrefix)
     $onFailure(() => xapi.deleteNetwork(xosanNetwork))
@@ -403,8 +405,10 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
     })))
 
     const firstSr = srsObjects[0]
+    CURRENTLY_CREATING_SRS[xapi.pool.$id] = {...OPERATION_OBJECT, state: 'importingVM'}
     const firstVM = await this::_importGlusterVM(xapi, template, firstSr)
     $onFailure(() => xapi.deleteVm(firstVM, true))
+    CURRENTLY_CREATING_SRS[xapi.pool.$id] = {...OPERATION_OBJECT, state: 'copyingVMs'}
     const copiedVms = await asyncMap(srsObjects.slice(1), sr =>
       copyVm(xapi, firstVM, sr)::tap(({ vm }) =>
         $onFailure(() => xapi.deleteVm(vm))
@@ -415,6 +419,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
       sr: firstSr
     }].concat(copiedVms)
     let arbiter = null
+    CURRENTLY_CREATING_SRS[xapi.pool.$id] = {...OPERATION_OBJECT, state: 'configuringVMs'}
     if (srs.length === 2) {
       const sr = firstSr
       const arbiterIP = networkPrefix + (vmIpLastNumber++)
@@ -428,6 +433,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
     const ipAndHosts = await asyncMap(vmsAndSrs, vmAndSr => _prepareGlusterVm(xapi, vmAndSr.sr, vmAndSr.vm, xosanNetwork,
       networkPrefix + (vmIpLastNumber++), {maxDiskSize: brickSize, memorySize}))
     const glusterEndpoint = { xapi, hosts: map(ipAndHosts, ih => ih.host), addresses: map(ipAndHosts, ih => ih.address) }
+    CURRENTLY_CREATING_SRS[xapi.pool.$id] = {...OPERATION_OBJECT, state: 'configuringGluster'}
     await configureGluster(redundancy, ipAndHosts, glusterEndpoint, glusterType, arbiter)
     debug('xosan gluster volume started')
     // We use 10 IPs of the gluster VM range as backup, in the hope that even if the first VM gets destroyed we find at least
@@ -436,6 +442,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
     // the hosts.
     const backupservers = map(range(VM_FIRST_NUMBER, VM_FIRST_NUMBER + 10), ipLastByte => networkPrefix + ipLastByte).join(':')
     const config = { server: ipAndHosts[0].address + ':/xosan', backupservers }
+    CURRENTLY_CREATING_SRS[xapi.pool.$id] = {...OPERATION_OBJECT, state: 'creatingSR'}
     const xosanSrRef = await xapi.call('SR.create', firstSr.$PBDs[0].$host.$ref, config, 0, 'XOSAN', 'XOSAN',
       'xosan', '', true, {})
     debug('sr created')
@@ -460,6 +467,7 @@ export const createSR = defer.onFailure(async function ($onFailure, { template, 
       networkPrefix,
       redundancy
     })
+    CURRENTLY_CREATING_SRS[xapi.pool.$id] = {...OPERATION_OBJECT, state: 'scanningSR'}
     debug('scanning new SR')
     await xapi.call('SR.scan', xosanSrRef)
   } finally {
@@ -808,12 +816,12 @@ removeBricks.params = {
   }
 }
 
-export function checkSrIsBusy ({ poolId }) {
-  return !!CURRENTLY_CREATING_SRS[poolId]
+export function checkSrCurrentState ({ poolId }) {
+  return CURRENTLY_CREATING_SRS[poolId]
 }
-checkSrIsBusy.description = 'checks if there is a xosan SR curently being created on the given pool id'
-checkSrIsBusy.permission = 'admin'
-checkSrIsBusy.params = { poolId: { type: 'string' } }
+checkSrCurrentState.description = 'checks if there is an operation currently running on the SR'
+checkSrCurrentState.permission = 'admin'
+checkSrCurrentState.params = { poolId: { type: 'string' } }
 
 const POSSIBLE_CONFIGURATIONS = {}
 POSSIBLE_CONFIGURATIONS[2] = [{ layout: 'replica_arbiter', redundancy: 3, capacity: 1 }]
