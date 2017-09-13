@@ -594,7 +594,6 @@ export async function replaceBrick ({xosansr, previousBrick, newLvmSr, brickSize
     operation: 'replaceBrick',
     states: ['insertingNewVm', 'swapingBrick', 'deletingVm', 'scaningSr']
   }
-  console.log('£££££££££££££££££££replaceBrick')
   if (onSameVM) {
     return this::replaceBrickOnSameVM(xosansr, previousBrick, newLvmSr, brickSize)
   }
@@ -617,7 +616,6 @@ export async function replaceBrick ({xosansr, previousBrick, newLvmSr, brickSize
     const previousVMEntry = _getIPToVMDict(xapi, xosansr)[previousBrick]
     const arbiter = nodes[nodeIndex].arbiter
     CURRENT_POOL_OPERATIONS[poolId] = {...OPERATION_OBJECT, state: 0}
-    console.log('CURRENT_POOL_OPERATIONS', CURRENT_POOL_OPERATIONS)
     let {newVM, addressAndHost} = await this::insertNewGlusterVm(xapi, xosansr, newLvmSr,
       {labelSuffix: arbiter ? '_arbiter' : '', glusterEndpoint, newIpAddress, increaseDataDisk: !arbiter, brickSize})
     CURRENT_POOL_OPERATIONS[poolId] = {...OPERATION_OBJECT, state: 1}
@@ -877,7 +875,6 @@ removeBricks.params = {
 }
 
 export function checkSrCurrentState ({poolId}) {
-  console.log('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$checkSrCurrentState', poolId, CURRENT_POOL_OPERATIONS[poolId])
   return CURRENT_POOL_OPERATIONS[poolId]
 }
 
