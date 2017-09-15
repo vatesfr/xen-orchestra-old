@@ -32,7 +32,7 @@ const CURRENT_POOL_OPERATIONS = {}
 
 function getXosanConfig (xosansr, xapi = this.getXapi(xosansr)) {
   const data = xapi.xo.getData(xosansr, 'xosan_config')
-  if (data.networkPrefix === undefined) {
+  if (data && data.networkPrefix === undefined) {
     // some xosan might have been created before this field was added
     data.networkPrefix = DEFAULT_NETWORK_PREFIX
     // fire and forget
