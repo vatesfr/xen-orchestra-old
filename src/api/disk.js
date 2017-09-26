@@ -4,11 +4,10 @@ import { unauthorized } from 'xo-common/api-errors'
 // ===================================================================
 
 export async function create ({ name, size, sr, vm, params }) {
-  const { resourceSet } = vm
-
   const attach = vm !== undefined
 
-  if (attach && resourceSet != null) {
+  let resourceSet
+  if (attach && (resourceSet = vm.resourceSet) != null) {
     await this.checkResourceSetConstraints(resourceSet, this.user.id, [ sr ])
     await this.allocateLimitsInResourceSet({ disk: size }, resourceSet)
   } else {
