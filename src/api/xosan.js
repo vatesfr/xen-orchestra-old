@@ -926,7 +926,7 @@ export async function computeXosanPossibleOptions ({lvmSrs, brickSize = Infinity
     const srSizes = map(srs, sr => sr.physical_size - sr.physical_utilisation)
     const minSize = Math.min.apply(null, srSizes.concat(brickSize))
     const finalBrickSize = Math.floor((minSize - XOSAN_VM_SYSTEM_DISK_SIZE) * XOSAN_DATA_DISK_USEAGE_RATIO)
-    return configurations.map(conf => ({...conf, availableSpace: finalBrickSize * conf.capacity}))
+    return configurations.map(conf => ({...conf, availableSpace: Math.max(0, finalBrickSize * conf.capacity)}))
   }
 }
 
