@@ -592,7 +592,7 @@ async function replaceBrickOnSameVM (xosansr, previousBrick, newLvmSr, brickSize
 export async function replaceBrick ({xosansr, previousBrick, newLvmSr, brickSize, onSameVM = true}) {
   const OPERATION_OBJECT = {
     operation: 'replaceBrick',
-    states: ['insertingNewVm', 'swapingBrick', 'deletingVm', 'scaningSr']
+    states: ['insertingNewVm', 'swapingBrick', 'deletingVm', 'scanningSr']
   }
   if (onSameVM) {
     return this::replaceBrickOnSameVM(xosansr, previousBrick, newLvmSr, brickSize)
@@ -776,7 +776,7 @@ const insertNewGlusterVm = defer.onFailure(async function ($onFailure, xapi, xos
 export const addBricks = defer.onFailure(async function ($onFailure, {xosansr, lvmsrs, brickSize}) {
   const OPERATION_OBJECT = {
     operation: 'addBricks',
-    states: ['insertingNewVms', 'addingBricks', 'scaningSr']
+    states: ['insertingNewVms', 'addingBricks', 'scanningSr']
   }
   const xapi = this.getXapi(xosansr)
   const poolId = xapi.pool.$id
