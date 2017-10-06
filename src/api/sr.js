@@ -1,3 +1,4 @@
+import {srIsBackingHa} from 'xo-common/xosan'
 import { asInteger } from '../xapi/utils'
 import {
   ensureArray,
@@ -49,14 +50,19 @@ scan.resolve = {
 // -------------------------------------------------------------------
 
 // TODO: find a way to call this "delete" and not destroy
-export async function destroy ({ sr }) {
+export async function destroy ({sr}) {
   const xapi = this.getXapi(sr)
   if (sr.SR_type === 'xosan') {
+    const xapiSr = xapi.getObject(sr)
+    if (srIsBackingHa(xapiSr)) {
+      throw new Error('You tried to remove a SR the High Availability is relying on. Please disable HA first.')
+    }
     const config = xapi.xo.getData(sr, 'xosan_config')
-    // we simply forget because the hosted disks are been destroyed with the VMs
+    // we simply forget because the hosted disks are being destroyed with the VMs
     await xapi.forgetSr(sr._xapiId)
     await Promise.all(config.nodes.map(node => xapi.deleteVm(node.vm.id)))
-    return xapi.deleteNetwork(config.network)
+    await xapi.deleteNetwork(config.network)
+    return
   }
   await xapi.destroySr(sr._xapiId)
 }
