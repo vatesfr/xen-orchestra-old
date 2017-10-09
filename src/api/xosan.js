@@ -383,6 +383,9 @@ export const createSR = defer.onFailure(async function ($onFailure, {
   template, pif, vlan, srs, glusterType,
   redundancy, brickSize, memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
 }) {
+  if (brickSize === undefined) {
+    brickSize = this::computeBrickSize(srs)
+  }
   const OPERATION_OBJECT = {
     operation: 'createSr',
     states: ['configuringNetwork', 'importingVm', 'copyingVms',
@@ -914,6 +917,14 @@ POSSIBLE_CONFIGURATIONS[15] = [
   {layout: 'replica', redundancy: 3, capacity: 5}]
 POSSIBLE_CONFIGURATIONS[16] = [{layout: 'replica', redundancy: 2, capacity: 8}]
 
+function computeBrickSize (srs, brickSize = Infinity) {
+  const xapi = this.getXapi(srs[0])
+  const srsObjects = map(srs, srId => xapi.getObject(srId))
+  const srSizes = map(srsObjects, sr => sr.physical_size - sr.physical_utilisation)
+  const minSize = Math.min.apply(null, srSizes.concat(brickSize))
+  return Math.floor((minSize - XOSAN_VM_SYSTEM_DISK_SIZE) * XOSAN_DATA_DISK_USEAGE_RATIO)
+}
+
 export async function computeXosanPossibleOptions ({lvmSrs, brickSize = Infinity}) {
   const count = lvmSrs.length
   const configurations = POSSIBLE_CONFIGURATIONS[count]
@@ -921,11 +932,7 @@ export async function computeXosanPossibleOptions ({lvmSrs, brickSize = Infinity
     return null
   }
   if (count > 0) {
-    const xapi = this.getXapi(lvmSrs[0])
-    const srs = map(lvmSrs, srId => xapi.getObject(srId))
-    const srSizes = map(srs, sr => sr.physical_size - sr.physical_utilisation)
-    const minSize = Math.min.apply(null, srSizes.concat(brickSize))
-    const finalBrickSize = Math.floor((minSize - XOSAN_VM_SYSTEM_DISK_SIZE) * XOSAN_DATA_DISK_USEAGE_RATIO)
+    const finalBrickSize = this::computeBrickSize(lvmSrs, brickSize)
     return configurations.map(conf => ({...conf, availableSpace: Math.max(0, finalBrickSize * conf.capacity)}))
   }
 }
