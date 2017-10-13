@@ -141,6 +141,9 @@ export async function getVolumeInfo ({sr, infoType}) {
     info: sshInfoType('info xosan', parseInfo),
     hosts: this::checkHosts
   }
+  if (glusterEndpoint == null) {
+    return null
+  }
   const foundType = infoTypes[infoType]
   if (!foundType) {
     throw new Error('getVolumeInfo(): "' + infoType + '" is an invalid type')
