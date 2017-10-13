@@ -185,7 +185,12 @@ export async function fixHostNotInNetwork ({xosanSr, host}) {
     if (PBD) {
       await xapi.call('PBD.plug', PBD.$ref)
     }
-    debug('host connected !')
+    const sshKey = await getOrCreateSshKey(xapi)
+    await callPlugin(xapi, host, 'receive_ssh_keys', {
+      private_key: sshKey.private,
+      public_key: sshKey.public,
+      force: 'true'
+    })
   }
 }
 
