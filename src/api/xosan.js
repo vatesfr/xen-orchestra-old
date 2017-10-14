@@ -305,7 +305,7 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
   await asyncMap(otherAddresses, async (address) => {
     const result = await callPlugin(xapi, master, 'run_cmd', {cmd_array: JSON.stringify(['ping', '-c', '5', address.address])})
     if (result.exit !== 0) {
-      throw Error('Could not ping '+master.name_label+'->'+ address.pif.$host.name_label +' (' + address.address + ') \n' + result.stdout)
+      throw Error('Could not ping ' + master.name_label + '->' + address.pif.$host.name_label + ' (' + address.address + ') \n' + result.stdout)
     }
   })
   return xosanNetwork
