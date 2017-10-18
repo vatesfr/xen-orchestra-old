@@ -2,6 +2,7 @@ import createLogger from 'debug'
 import defer from 'golike-defer'
 import execa from 'execa'
 import fs from 'fs-extra'
+import { v4 as generateUuid } from 'uuid'
 import map from 'lodash/map'
 import { tap, delay } from 'promise-toolbox'
 import {
@@ -547,8 +548,48 @@ async function umountDisk (localEndpoint, diskMountPoint) {
   await remoteSsh(localEndpoint, `killall -v -w /usr/sbin/xfs_growfs; fuser -v ${diskMountPoint}; umount ${diskMountPoint} && sed -i '\\_${diskMountPoint}\\S_d' /etc/fstab && rm -rf ${diskMountPoint}`)
 }
 
+// this is mostly what the LVM SR driver does, but we are avoiding the 2To limit it imposes.
+async function createVDIOnLVMWithoutSizeLimit (xapi, lvmSr, diskSize) {
+  const VG_PREFIX = 'VG_XenStorage-'
+  const LV_PREFIX = 'VHD-'
+  const MSIZE_MB = String(2 * 1024 * 1024)
+  if (lvmSr.type !== 'lvm') {
+    throw new Error('expecting a lvm sr type, got"' + lvmSr.type + '"')
+  }
+  const uuid = generateUuid()
+  const lvName = LV_PREFIX + uuid
+  const vgName = VG_PREFIX + lvmSr.uuid
+  const vhdPath = '/dev/' + vgName + '/' + lvName
+  const host = lvmSr.$PBDs[0].$host
+  const sizeMb = String(Math.ceil(diskSize / 1024 / 1024))
+  const cmdArray = ['lvcreate', '-L' + sizeMb + 'M', '-n', lvName, vgName, '--config', 'global{metadata_read_only=0}']
+  const result =  await callPlugin(xapi, host, 'run_cmd', {cmd_array: JSON.stringify(cmdArray)})
+  if (result.exit !== 0) {
+    throw Error('Could not create volume ->' + result.stdout)
+  }
+  try {
+    const cmdArray2 = ['/usr/bin/vhd-util', 'create', '-n', vhdPath, '-s', sizeMb, '-S', MSIZE_MB]
+    const result2 = await callPlugin(xapi, host, 'run_cmd', {cmd_array: JSON.stringify(cmdArray2)})
+    if (result2.exit !== 0) {
+      throw Error('Could not create VHD ->' + result2.stdout)
+    }
+    await xapi.call('SR.scan', xapi.getObject(lvmSr).$ref)
+    const vdis = filter(xapi.getObject(lvmSr).$VDIs, vdi => vdi.uuid === uuid)
+    if (vdis.length) {
+      const vdi = vdis[0]
+      await xapi.setSrProperties(vdi.$ref, {nameLabel: 'xosan_data', nameDescription: 'Created by XO'})
+      return vdi
+    }
+  } catch (e) {
+    await callPlugin(xapi, host, 'run_cmd', {cmd_array: JSON.stringify(['lvremove', '-f', vgName + '/' + lvName, '--config', 'global{metadata_read_only=0}'])})
+    throw e
+  }
+}
+
 async function createNewDisk (xapi, sr, vm, diskSize) {
-  const newDisk = await xapi.createVdi(diskSize, {sr: sr, name_label: 'xosan_data', name_description: 'Created by XO'})
+  //this is the normal method to create the VDI
+  //const newDisk = await xapi.createVdi(diskSize, {sr: sr, name_label: 'xosan_data', name_description: 'Created by XO'})
+  const newDisk = await createVDIOnLVMWithoutSizeLimit(xapi, sr, diskSize)
   await xapi.attachVdiToVm(newDisk, vm)
   let vbd = await xapi._waitObjectState(newDisk.$id, disk => Boolean(disk.$VBDs.length)).$VBDs[0]
   vbd = await xapi._waitObjectState(vbd.$id, vbd => Boolean(vbd.device.length))
