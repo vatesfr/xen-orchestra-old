@@ -304,7 +304,7 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
   const master = xapi.pool.$master
   const otherAddresses = addresses.filter(addr => addr.pif.$host !== master)
   await asyncMap(otherAddresses, async (address) => {
-    const result = await callPlugin(xapi, master, 'run_cmd', {cmd_array: JSON.stringify(['ping', '-c', '5', address.address])})
+    const result = await callPlugin(xapi, master, 'run_ping', {address: address.address})
     if (result.exit !== 0) {
       throw Error('Could not ping ' + master.name_label + '->' + address.pif.$host.name_label + ' (' + address.address + ') \n' + result.stdout)
     }
@@ -560,8 +560,7 @@ async function createVDIOnLVMWithoutSizeLimit (xapi, lvmSr, diskSize) {
   const vgName = VG_PREFIX + lvmSr.uuid
   const host = lvmSr.$PBDs[0].$host
   const sizeMb = String(Math.ceil(diskSize / 1024 / 1024))
-  const cmdArray = ['lvcreate', '-L' + sizeMb + 'M', '-n', lvName, vgName, '--config', 'global{metadata_read_only=0}']
-  const result = await callPlugin(xapi, host, 'run_cmd', {cmd_array: JSON.stringify(cmdArray)})
+  const result = await callPlugin(xapi, host, 'run_lvcreate', {sizeMb, lvName, vgName})
   if (result.exit !== 0) {
     throw Error('Could not create volume ->' + result.stdout)
   }
