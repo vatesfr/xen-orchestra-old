@@ -418,11 +418,14 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
 }
 
 export const createSR = defer.onFailure(async function ($onFailure, {
-  template, pif, vlan, srs, glusterType,
-  redundancy, brickSize, memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
+  template, pif, vlan, srs, glusterType, redundancy, brickSize, memorySize = 2 * GIGABYTE,
+  ipRange = DEFAULT_NETWORK_PREFIX + '.0', rollbackOnError = true
 }) {
   if (brickSize === undefined) {
     brickSize = this::computeBrickSize(srs)
+  }
+  if (!rollbackOnError) {
+    $onFailure = () => null
   }
   const OPERATION_OBJECT = {
     operation: 'createSr',
