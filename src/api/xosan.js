@@ -13,6 +13,7 @@ import {
   find,
   range
 } from 'lodash'
+import { invalidParameters } from 'xo-common/api-errors'
 import {
   asyncMap,
   parseXml
@@ -225,6 +226,25 @@ async function callPlugin (xapi, host, command, params) {
 
 async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
   let result
+  const formatSshError = (result) => {
+    const messageArray = []
+    const messageKeys = Array.from(Object.keys(result))
+    const orderedKeys = ['stderr', 'stdout', 'exit']
+    for (let key of orderedKeys) {
+      const idx = messageKeys.indexOf(key)
+      if (idx !== -1) {
+        messageKeys.splice(idx, 1)
+      }
+      messageArray.push(key + ': ' + result[key])
+    }
+    messageArray.push('command: ' + result['command'].join(' '))
+    messageKeys.splice(messageKeys.indexOf('command'), 1)
+    for (let key of messageKeys) {
+      messageArray.push(key + ': ' + JSON.stringify(result[key]))
+    }
+    return messageArray.join('\n')
+  }
+
   for (let address of glusterEndpoint.addresses) {
     for (let host of glusterEndpoint.hosts) {
       try {
@@ -241,12 +261,12 @@ async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
     // 255 seems to be ssh's own error codes.
     if (result.exit !== 255) {
       if (!ignoreError && result.exit !== 0) {
-        throw new Error('ssh error: ' + JSON.stringify(result))
+        throw new Error(formatSshError(result))
       }
       return result
     }
   }
-  throw new Error(result ? 'ssh error: ' + JSON.stringify(result) : 'no suitable SSH host: ' +
+  throw new Error(result ? formatSshError(result) : 'no suitable SSH host: ' +
     JSON.stringify(glusterEndpoint))
 }
 
@@ -306,7 +326,7 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
   await asyncMap(otherAddresses, async (address) => {
     const result = await callPlugin(xapi, master, 'run_ping', {address: address.address})
     if (result.exit !== 0) {
-      throw Error('Could not ping ' + master.name_label + '->' + address.pif.$host.name_label + ' (' + address.address + ') \n' + result.stdout)
+      throw invalidParameters('Could not ping ' + master.name_label + '->' + address.pif.$host.name_label + ' (' + address.address + ') \n' + result.stdout)
     }
   })
   return xosanNetwork
@@ -763,9 +783,11 @@ async function _importGlusterVM (xapi, template, lvmsrId) {
   const templateStream = await this.requestResource('xosan', template.id, template.version)
   const newVM = await xapi.importVm(templateStream, {srId: lvmsrId, type: 'xva'})
   await xapi.editVm(newVM, {
-    autoPoweron: true
+    autoPoweron: true,
+    name_label: 'XOSAN imported VM',
+    name_description: 'freshly imported'
   })
-  return newVM
+  return xapi.barrier(newVM.$ref)
 }
 
 function _findAFreeIPAddress (nodes, networkPrefix) {
