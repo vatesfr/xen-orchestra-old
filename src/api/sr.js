@@ -1,4 +1,4 @@
-import {srIsBackingHa} from 'xo-common/xosan'
+import { some } from 'lodash'
 import { asInteger } from '../xapi/utils'
 import {
   ensureArray,
@@ -54,6 +54,9 @@ export async function destroy ({sr}) {
   const xapi = this.getXapi(sr)
   if (sr.SR_type === 'xosan') {
     const xapiSr = xapi.getObject(sr)
+    const srIsBackingHa = (sr) => {
+      return sr.$pool.ha_enabled && some(sr.$pool.$ha_statefiles, f => f.$SR === sr)
+    }
     if (srIsBackingHa(xapiSr)) {
       throw new Error('You tried to remove a SR the High Availability is relying on. Please disable HA first.')
     }
