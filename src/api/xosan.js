@@ -2,9 +2,10 @@ import createLogger from 'debug'
 import defer from 'golike-defer'
 import execa from 'execa'
 import fs from 'fs-extra'
-import { v4 as generateUuid } from 'uuid'
 import map from 'lodash/map'
 import { tap, delay } from 'promise-toolbox'
+import { v4 as generateUuid } from 'uuid'
+import { invalidParameters } from 'xo-common/api-errors'
 import {
   includes,
   isArray,
@@ -13,7 +14,7 @@ import {
   find,
   range
 } from 'lodash'
-import { invalidParameters } from 'xo-common/api-errors'
+
 import {
   asyncMap,
   parseXml
@@ -191,7 +192,7 @@ export async function fixHostNotInNetwork ({xosanSr, host}) {
     await callPlugin(xapi, host, 'receive_ssh_keys', {
       private_key: sshKey.private,
       public_key: sshKey.public,
-      force: 'true'
+      force: true
     })
   }
 }
@@ -230,7 +231,7 @@ async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
     const messageArray = []
     const messageKeys = Array.from(Object.keys(result))
     const orderedKeys = ['stderr', 'stdout', 'exit']
-    for (let key of orderedKeys) {
+    for (const key of orderedKeys) {
       const idx = messageKeys.indexOf(key)
       if (idx !== -1) {
         messageKeys.splice(idx, 1)
@@ -239,14 +240,14 @@ async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
     }
     messageArray.push('command: ' + result['command'].join(' '))
     messageKeys.splice(messageKeys.indexOf('command'), 1)
-    for (let key of messageKeys) {
-      messageArray.push(key + ': ' + JSON.stringify(result[key]))
+    for (const key of messageKeys) {
+      messageArray.push(`${key}: ${JSON.stringify(result[key])}`)
     }
     return messageArray.join('\n')
   }
 
-  for (let address of glusterEndpoint.addresses) {
-    for (let host of glusterEndpoint.hosts) {
+  for (const address of glusterEndpoint.addresses) {
+    for (const host of glusterEndpoint.hosts) {
       try {
         result = await callPlugin(glusterEndpoint.xapi, host, 'run_ssh', {destination: 'root@' + address, cmd: cmd})
         break
@@ -362,7 +363,7 @@ const _probePoolAndWaitForPresence = defer.onFailure(async function ($onFailure,
   })
 
   function shouldRetry (peers) {
-    for (let peer of peers) {
+    for (const peer of peers) {
       if (peer.state === '4') {
         return true
       }
@@ -586,7 +587,7 @@ async function createVDIOnLVMWithoutSizeLimit (xapi, lvmSr, diskSize) {
   }
   await xapi.call('SR.scan', xapi.getObject(lvmSr).$ref)
   const vdis = filter(xapi.getObject(lvmSr).$VDIs, vdi => vdi.uuid === uuid)
-  if (vdis.length) {
+  if (vdis.length !== 0) {
     const vdi = vdis[0]
     await xapi.setSrProperties(vdi.$ref, {nameLabel: 'xosan_data', nameDescription: 'Created by XO'})
     return vdi
@@ -594,8 +595,6 @@ async function createVDIOnLVMWithoutSizeLimit (xapi, lvmSr, diskSize) {
 }
 
 async function createNewDisk (xapi, sr, vm, diskSize) {
-  // this is the normal method to create the VDI
-  // const newDisk = await xapi.createVdi(diskSize, {sr: sr, name_label: 'xosan_data', name_description: 'Created by XO'})
   const newDisk = await createVDIOnLVMWithoutSizeLimit(xapi, sr, diskSize)
   await xapi.attachVdiToVm(newDisk, vm)
   let vbd = await xapi._waitObjectState(newDisk.$id, disk => Boolean(disk.$VBDs.length)).$VBDs[0]
@@ -818,7 +817,7 @@ const insertNewGlusterVm = defer.onFailure(async function ($onFailure, xapi, xos
     ipAddress = _findAFreeIPAddress(data.nodes, data.networkPrefix)
   }
   const vmsMemories = []
-  for (let node of data.nodes) {
+  for (const node of data.nodes) {
     try {
       vmsMemories.push(xapi.getObject(node.vm.id).memory_dynamic_max)
     } catch (e) {
@@ -860,7 +859,7 @@ export const addBricks = defer.onFailure(async function ($onFailure, {xosansr, l
     const glusterEndpoint = this::_getGlusterEndpoint(xosansr)
     const newAddresses = []
     const newNodes = []
-    for (let newSr of lvmsrs) {
+    for (const newSr of lvmsrs) {
       const ipAddress = _findIPAddressOutsideList(usedAddresses.concat(newAddresses), data.networkPrefix)
       newAddresses.push(ipAddress)
       const {newVM, addressAndHost} = await this::insertNewGlusterVm(xapi, xosansr, newSr, {ipAddress, brickSize})
@@ -988,7 +987,7 @@ function computeBrickSize (srs, brickSize = Infinity) {
   const xapi = this.getXapi(srs[0])
   const srsObjects = map(srs, srId => xapi.getObject(srId))
   const srSizes = map(srsObjects, sr => sr.physical_size - sr.physical_utilisation)
-  const minSize = Math.min.apply(null, srSizes.concat(brickSize))
+  const minSize = Math.min(brickSize, ...srSizes)
   return Math.floor((minSize - XOSAN_VM_SYSTEM_DISK_SIZE) * XOSAN_DATA_DISK_USEAGE_RATIO)
 }
 

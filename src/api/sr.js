@@ -48,26 +48,26 @@ scan.resolve = {
 }
 
 // -------------------------------------------------------------------
+const srIsBackingHa = (sr) => {
+  return sr.$pool.ha_enabled && some(sr.$pool.$ha_statefiles, f => f.$SR === sr)
+}
 
 // TODO: find a way to call this "delete" and not destroy
 export async function destroy ({sr}) {
   const xapi = this.getXapi(sr)
-  if (sr.SR_type === 'xosan') {
-    const xapiSr = xapi.getObject(sr)
-    const srIsBackingHa = (sr) => {
-      return sr.$pool.ha_enabled && some(sr.$pool.$ha_statefiles, f => f.$SR === sr)
-    }
-    if (srIsBackingHa(xapiSr)) {
-      throw new Error('You tried to remove a SR the High Availability is relying on. Please disable HA first.')
-    }
-    const config = xapi.xo.getData(sr, 'xosan_config')
-    // we simply forget because the hosted disks are being destroyed with the VMs
-    await xapi.forgetSr(sr._xapiId)
-    await Promise.all(config.nodes.map(node => xapi.deleteVm(node.vm.id)))
-    await xapi.deleteNetwork(config.network)
+  if (sr.SR_type !== 'xosan') {
+    await xapi.destroySr(sr._xapiId)
     return
   }
-  await xapi.destroySr(sr._xapiId)
+  const xapiSr = xapi.getObject(sr)
+  if (srIsBackingHa(xapiSr)) {
+    throw new Error('You tried to remove a SR the High Availability is relying on. Please disable HA first.')
+  }
+  const config = xapi.xo.getData(sr, 'xosan_config')
+  // we simply forget because the hosted disks are being destroyed with the VMs
+  await xapi.forgetSr(sr._xapiId)
+  await Promise.all(config.nodes.map(node => xapi.deleteVm(node.vm.id)))
+  await xapi.deleteNetwork(config.network)
 }
 
 destroy.params = {
