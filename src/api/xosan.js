@@ -4,8 +4,8 @@ import execa from 'execa'
 import fs from 'fs-extra'
 import map from 'lodash/map'
 import { tap, delay } from 'promise-toolbox'
-import { v4 as generateUuid } from 'uuid'
 import { invalidParameters } from 'xo-common/api-errors'
+import { v4 as generateUuid } from 'uuid'
 import {
   includes,
   isArray,
@@ -267,7 +267,7 @@ async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
       return result
     }
   }
-  throw new Error(result ? formatSshError(result) : 'no suitable SSH host: ' +
+  throw new Error(result != null ? formatSshError(result) : 'no suitable SSH host: ' +
     JSON.stringify(glusterEndpoint))
 }
 
@@ -321,7 +321,7 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
   })
   $onFailure(() => xapi.deleteNetwork(xosanNetwork))
   const addresses = xosanNetwork.$PIFs.map(pif => ({pif, address: networkPrefix + (hostIpLastNumber++)}))
-  await Promise.all(addresses.map(addressAndPif => reconfigurePifIP(xapi, addressAndPif.pif, addressAndPif.address)))
+  await asyncMap(addresses, addressAndPif => reconfigurePifIP(xapi, addressAndPif.pif, addressAndPif.address))
   const master = xapi.pool.$master
   const otherAddresses = addresses.filter(addr => addr.pif.$host !== master)
   await asyncMap(otherAddresses, async (address) => {
@@ -586,9 +586,8 @@ async function createVDIOnLVMWithoutSizeLimit (xapi, lvmSr, diskSize) {
     throw Error('Could not create volume ->' + result.stdout)
   }
   await xapi.call('SR.scan', xapi.getObject(lvmSr).$ref)
-  const vdis = filter(xapi.getObject(lvmSr).$VDIs, vdi => vdi.uuid === uuid)
-  if (vdis.length !== 0) {
-    const vdi = vdis[0]
+  const vdi = find(xapi.getObject(lvmSr).$VDIs, vdi => vdi.uuid === uuid)
+  if (vdi != null) {
     await xapi.setSrProperties(vdi.$ref, {nameLabel: 'xosan_data', nameDescription: 'Created by XO'})
     return vdi
   }
