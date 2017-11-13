@@ -4,8 +4,8 @@ import execa from 'execa'
 import fs from 'fs-extra'
 import map from 'lodash/map'
 import { tap, delay } from 'promise-toolbox'
-import { v4 as generateUuid } from 'uuid'
 import { invalidParameters } from 'xo-common/api-errors'
+import { v4 as generateUuid } from 'uuid'
 import {
   includes,
   isArray,
@@ -15,10 +15,8 @@ import {
   range
 } from 'lodash'
 
-import {
-  asyncMap,
-  parseXml
-} from '../utils'
+import { asInteger } from '../xapi/utils'
+import { asyncMap, parseXml } from '../utils'
 
 const debug = createLogger('xo:xosan')
 
@@ -229,14 +227,14 @@ async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
   let result
   const formatSshError = (result) => {
     const messageArray = []
-    const messageKeys = Array.from(Object.keys(result))
+    const messageKeys = Object.keys(result)
     const orderedKeys = ['stderr', 'stdout', 'exit']
     for (const key of orderedKeys) {
       const idx = messageKeys.indexOf(key)
       if (idx !== -1) {
         messageKeys.splice(idx, 1)
       }
-      messageArray.push(key + ': ' + result[key])
+      messageArray.push(`${key}: ${result[key]}`)
     }
     messageArray.push('command: ' + result['command'].join(' '))
     messageKeys.splice(messageKeys.indexOf('command'), 1)
@@ -267,7 +265,7 @@ async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
       return result
     }
   }
-  throw new Error(result ? formatSshError(result) : 'no suitable SSH host: ' +
+  throw new Error(result != null ? formatSshError(result) : 'no suitable SSH host: ' +
     JSON.stringify(glusterEndpoint))
 }
 
@@ -321,13 +319,13 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
   })
   $onFailure(() => xapi.deleteNetwork(xosanNetwork))
   const addresses = xosanNetwork.$PIFs.map(pif => ({pif, address: networkPrefix + (hostIpLastNumber++)}))
-  await Promise.all(addresses.map(addressAndPif => reconfigurePifIP(xapi, addressAndPif.pif, addressAndPif.address)))
+  await asyncMap(addresses, addressAndPif => reconfigurePifIP(xapi, addressAndPif.pif, addressAndPif.address))
   const master = xapi.pool.$master
   const otherAddresses = addresses.filter(addr => addr.pif.$host !== master)
   await asyncMap(otherAddresses, async (address) => {
     const result = await callPlugin(xapi, master, 'run_ping', {address: address.address})
     if (result.exit !== 0) {
-      throw invalidParameters('Could not ping ' + master.name_label + '->' + address.pif.$host.name_label + ' (' + address.address + ') \n' + result.stdout)
+      throw invalidParameters(`Could not ping ${master.name_label}->${address.pif.$host.name_label} (${address.address}) \n${result.stdout}`)
     }
   })
   return xosanNetwork
@@ -419,15 +417,9 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
 }
 
 export const createSR = defer.onFailure(async function ($onFailure, {
-  template, pif, vlan, srs, glusterType, redundancy, brickSize, memorySize = 2 * GIGABYTE,
-  ipRange = DEFAULT_NETWORK_PREFIX + '.0', rollbackOnError = true
+  template, pif, vlan, srs, glusterType,
+  redundancy, brickSize = this::computeBrickSize(srs), memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
 }) {
-  if (brickSize === undefined) {
-    brickSize = this::computeBrickSize(srs)
-  }
-  if (!rollbackOnError) {
-    $onFailure = () => null
-  }
   const OPERATION_OBJECT = {
     operation: 'createSr',
     states: ['configuringNetwork', 'importingVm', 'copyingVms',
@@ -583,15 +575,14 @@ async function createVDIOnLVMWithoutSizeLimit (xapi, lvmSr, diskSize) {
   const lvName = LV_PREFIX + uuid
   const vgName = VG_PREFIX + lvmSr.uuid
   const host = lvmSr.$PBDs[0].$host
-  const sizeMb = String(Math.ceil(diskSize / 1024 / 1024))
-  const result = await callPlugin(xapi, host, 'run_lvcreate', {sizeMb, lvName, vgName})
+  const sizeMb = Math.ceil(diskSize / 1024 / 1024)
+  const result = await callPlugin(xapi, host, 'run_lvcreate', {sizeMb: asInteger(sizeMb), lvName, vgName})
   if (result.exit !== 0) {
     throw Error('Could not create volume ->' + result.stdout)
   }
   await xapi.call('SR.scan', xapi.getObject(lvmSr).$ref)
-  const vdis = filter(xapi.getObject(lvmSr).$VDIs, vdi => vdi.uuid === uuid)
-  if (vdis.length !== 0) {
-    const vdi = vdis[0]
+  const vdi = find(xapi.getObject(lvmSr).$VDIs, vdi => vdi.uuid === uuid)
+  if (vdi != null) {
     await xapi.setSrProperties(vdi.$ref, {nameLabel: 'xosan_data', nameDescription: 'Created by XO'})
     return vdi
   }

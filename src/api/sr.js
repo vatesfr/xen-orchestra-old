@@ -1,6 +1,8 @@
 import { some } from 'lodash'
+
 import { asInteger } from '../xapi/utils'
 import {
+  asyncMap,
   ensureArray,
   forEach,
   parseXml
@@ -48,9 +50,7 @@ scan.resolve = {
 }
 
 // -------------------------------------------------------------------
-const srIsBackingHa = (sr) => {
-  return sr.$pool.ha_enabled && some(sr.$pool.$ha_statefiles, f => f.$SR === sr)
-}
+const srIsBackingHa = (sr) => sr.$pool.ha_enabled && some(sr.$pool.$ha_statefiles, f => f.$SR === sr)
 
 // TODO: find a way to call this "delete" and not destroy
 export async function destroy ({sr}) {
@@ -66,7 +66,7 @@ export async function destroy ({sr}) {
   const config = xapi.xo.getData(sr, 'xosan_config')
   // we simply forget because the hosted disks are being destroyed with the VMs
   await xapi.forgetSr(sr._xapiId)
-  await Promise.all(config.nodes.map(node => xapi.deleteVm(node.vm.id)))
+  await asyncMap(config.nodes, node => xapi.deleteVm(node.vm.id))
   await xapi.deleteNetwork(config.network)
 }
 
