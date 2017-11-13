@@ -1,6 +1,6 @@
 {
   "name": "xen-api",
-  "version": "0.14.3",
+  "version": "0.15.1",
   "license": "ISC",
   "description": "Connector to the Xen API",
   "keywords": [
@@ -37,7 +37,7 @@
     "debug": "^2.6.8",
     "event-to-promise": "^0.8.0",
     "exec-promise": "^0.7.0",
-    "http-request-plus": "^0.4.0",
+    "http-request-plus": "^0.5.0",
     "iterable-backoff": "^0.0.0",
     "json-rpc-protocol": "^0.11.2",
     "kindof": "^2.0.0",
@@ -58,20 +58,17 @@
     "babel-preset-stage-0": "^6.24.1",
     "cross-env": "^5.0.5",
     "dependency-check": "^2.9.1",
-    "jest": "^21.2.1",
     "rimraf": "^2.6.1"
   },
   "scripts": {
     "build": "cross-env NODE_ENV=production babel --source-maps --out-dir=dist/ src/",
     "commitmsg": "npm test",
     "dev": "cross-env NODE_ENV=development babel --watch --source-maps --out-dir=dist/ src/",
-    "dev-test": "jest --bail --watch",
     "plot": "gnuplot -p memory-test.gnu",
     "posttest": "dependency-check ./package.json",
     "prebuild": "rimraf dist/",
     "predev": "npm run prebuild",
-    "prepublish": "npm run build",
-    "test": "jest"
+    "prepublish": "npm run build"
   },
   "babel": {
     "plugins": [
@@ -89,11 +86,5 @@
       ],
       "stage-0"
     ]
-  },
-  "jest": {
-    "roots": [
-      "<rootDir>/src"
-    ],
-    "testRegex": "\\.spec\\.js$"
   }
 }
