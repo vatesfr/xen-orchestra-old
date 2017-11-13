@@ -15,10 +15,8 @@ import {
   range
 } from 'lodash'
 
-import {
-  asyncMap,
-  parseXml
-} from '../utils'
+import { asInteger } from '../xapi/utils'
+import { asyncMap, parseXml } from '../utils'
 
 const debug = createLogger('xo:xosan')
 
@@ -229,14 +227,14 @@ async function remoteSsh (glusterEndpoint, cmd, ignoreError = false) {
   let result
   const formatSshError = (result) => {
     const messageArray = []
-    const messageKeys = Array.from(Object.keys(result))
+    const messageKeys = Object.keys(result)
     const orderedKeys = ['stderr', 'stdout', 'exit']
     for (const key of orderedKeys) {
       const idx = messageKeys.indexOf(key)
       if (idx !== -1) {
         messageKeys.splice(idx, 1)
       }
-      messageArray.push(key + ': ' + result[key])
+      messageArray.push(`${key}: ${result[key]}`)
     }
     messageArray.push('command: ' + result['command'].join(' '))
     messageKeys.splice(messageKeys.indexOf('command'), 1)
@@ -327,7 +325,7 @@ const createNetworkAndInsertHosts = defer.onFailure(async function ($onFailure, 
   await asyncMap(otherAddresses, async (address) => {
     const result = await callPlugin(xapi, master, 'run_ping', {address: address.address})
     if (result.exit !== 0) {
-      throw invalidParameters('Could not ping ' + master.name_label + '->' + address.pif.$host.name_label + ' (' + address.address + ') \n' + result.stdout)
+      throw invalidParameters(`Could not ping ${master.name_label}->${address.pif.$host.name_label} (${address.address}) \n${result.stdout}`)
     }
   })
   return xosanNetwork
@@ -420,11 +418,8 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
 
 export const createSR = defer.onFailure(async function ($onFailure, {
   template, pif, vlan, srs, glusterType,
-  redundancy, brickSize, memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
+  redundancy, brickSize = this::computeBrickSize(srs), memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
 }) {
-  if (brickSize === undefined) {
-    brickSize = this::computeBrickSize(srs)
-  }
   const OPERATION_OBJECT = {
     operation: 'createSr',
     states: ['configuringNetwork', 'importingVm', 'copyingVms',
@@ -580,8 +575,8 @@ async function createVDIOnLVMWithoutSizeLimit (xapi, lvmSr, diskSize) {
   const lvName = LV_PREFIX + uuid
   const vgName = VG_PREFIX + lvmSr.uuid
   const host = lvmSr.$PBDs[0].$host
-  const sizeMb = String(Math.ceil(diskSize / 1024 / 1024))
-  const result = await callPlugin(xapi, host, 'run_lvcreate', {sizeMb, lvName, vgName})
+  const sizeMb = Math.ceil(diskSize / 1024 / 1024)
+  const result = await callPlugin(xapi, host, 'run_lvcreate', {sizeMb: asInteger(sizeMb), lvName, vgName})
   if (result.exit !== 0) {
     throw Error('Could not create volume ->' + result.stdout)
   }
