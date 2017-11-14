@@ -83,9 +83,7 @@ async function rateLimitedRetry (action, shouldRetry, retryCount = 20) {
   return result
 }
 
-export async function getVolumeInfo ({sr, infoType}) {
-  const glusterEndpoint = this::_getGlusterEndpoint(sr)
-
+function createVolumeInfoTypes () {
   function parseHeal (parsed) {
     const bricks = []
     parsed['healInfo']['bricks']['brick'].forEach(brick => {
@@ -110,23 +108,58 @@ export async function getVolumeInfo ({sr, infoType}) {
     }
   }
 
-  function parseInfo (parsed) {
+  async function parseInfo (parsed) {
     const volume = parsed['volInfo']['volumes']['volume']
     volume['bricks'] = volume['bricks']['brick']
     volume['options'] = volume['options']['option']
     return {commandStatus: true, result: volume}
   }
 
-  function sshInfoType (command, handler) {
-    return async () => {
-      const cmdShouldRetry = result => !result['commandStatus'] && result.parsed && result.parsed['cliOutput']['opErrno'] === '30802'
+  const sshInfoType = (command, handler) => {
+    return async function (sr) {
+      const glusterEndpoint = this::_getGlusterEndpoint(sr)
+      const cmdShouldRetry = result =>
+        !result['commandStatus'] &&
+        ((result.parsed && result.parsed['cliOutput']['opErrno'] === '30802') ||
+          result.stderr.match(/Another transaction is in progress/))
       const runCmd = async () => glusterCmd(glusterEndpoint, 'volume ' + command, true)
-      let commandResult = await rateLimitedRetry(runCmd, cmdShouldRetry)
-      return commandResult['commandStatus'] ? handler(commandResult.parsed['cliOutput']) : commandResult
+      let commandResult = await rateLimitedRetry(runCmd, cmdShouldRetry, 30)
+      return commandResult['commandStatus'] ? this::handler(commandResult.parsed['cliOutput'], sr) : commandResult
     }
   }
 
-  function checkHosts () {
+  async function profileType (sr) {
+    async function parseProfile (parsed) {
+      const volume = parsed['volProfile']
+      volume['bricks'] = volume['brick']
+      if (!Array.isArray(volume['bricks'])) {
+        volume['bricks'] = [volume['bricks']]
+      }
+      delete volume['brick']
+      return {commandStatus: true, result: volume}
+    }
+
+    return this::(sshInfoType('profile xosan info', parseProfile))(sr)
+  }
+
+  async function profileTopType (sr) {
+    async function parseTop (parsed) {
+      const volume = parsed['volTop']
+      volume['bricks'] = volume['brick']
+      if (!Array.isArray(volume['bricks'])) {
+        volume['bricks'] = [volume['bricks']]
+      }
+      delete volume['brick']
+      return {commandStatus: true, result: volume}
+    }
+
+    const topTypes = ['open', 'read', 'write', 'opendir', 'readdir']
+    return asyncMap(topTypes, async type => ({
+      type, result: await this::(sshInfoType(`top xosan ${type}`, parseTop))(sr)
+    }))
+  }
+
+  function checkHosts (sr) {
     const xapi = this.getXapi(sr)
     const data = getXosanConfig(sr, xapi)
     const network = xapi.getObject(data.network)
@@ -134,22 +167,31 @@ export async function getVolumeInfo ({sr, infoType}) {
     return badPifs.map(pif => ({pif, host: pif.$host.$id}))
   }
 
-  const infoTypes = {
+  return {
     heal: sshInfoType('heal xosan info', parseHeal),
     status: sshInfoType('status xosan', parseStatus),
     statusDetail: sshInfoType('status xosan detail', parseStatus),
     statusMem: sshInfoType('status xosan mem', parseStatus),
     info: sshInfoType('info xosan', parseInfo),
-    hosts: this::checkHosts
+    profile: profileType,
+    profileTop: profileTopType,
+    hosts: checkHosts
   }
+}
+
+const VOLUME_INFO_TYPES = createVolumeInfoTypes()
+
+export async function getVolumeInfo ({sr, infoType}) {
+  const glusterEndpoint = this::_getGlusterEndpoint(sr)
+
   if (glusterEndpoint == null) {
     return null
   }
-  const foundType = infoTypes[infoType]
+  const foundType = VOLUME_INFO_TYPES[infoType]
   if (!foundType) {
     throw new Error('getVolumeInfo(): "' + infoType + '" is an invalid type')
   }
-  return foundType()
+  return this::foundType(sr)
 }
 
 getVolumeInfo.description = 'info on gluster volume'
@@ -160,10 +202,36 @@ getVolumeInfo.params = {
     type: 'string'
   },
   infoType: {
-    type: 'string'
+    type: 'string', eq: Object.keys(VOLUME_INFO_TYPES)
   }
 }
 getVolumeInfo.resolve = {
+  sr: ['sr', 'SR', 'administrate']
+}
+
+export async function profileStatus ({sr, changeStatus = null}) {
+  const glusterEndpoint = this::_getGlusterEndpoint(sr)
+  if (changeStatus === false) {
+    await glusterCmd(glusterEndpoint, 'volume profile xosan stop')
+    return null
+  }
+  if (changeStatus === true) {
+    await glusterCmd(glusterEndpoint, 'volume profile xosan start')
+  }
+  return this::getVolumeInfo({sr: sr, infoType: 'profile'})
+}
+
+profileStatus.description = 'activate, deactivate, or interrogate profile data'
+profileStatus.permission = 'admin'
+profileStatus.params = {
+  sr: {
+    type: 'string'
+  },
+  changeStatus: {
+    type: 'bool', optional: true
+  }
+}
+profileStatus.resolve = {
   sr: ['sr', 'SR', 'administrate']
 }
 
@@ -400,6 +468,7 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
   await glusterCmd(glusterEndpoint, volumeCreation)
   await glusterCmd(glusterEndpoint, 'volume set xosan network.remote-dio enable')
   await glusterCmd(glusterEndpoint, 'volume set xosan cluster.eager-lock enable')
+  await glusterCmd(glusterEndpoint, 'volume set xosan cluster.locking-scheme granular')
   await glusterCmd(glusterEndpoint, 'volume set xosan performance.io-cache off')
   await glusterCmd(glusterEndpoint, 'volume set xosan performance.read-ahead off')
   await glusterCmd(glusterEndpoint, 'volume set xosan performance.quick-read off')
@@ -408,8 +477,10 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
   await glusterCmd(glusterEndpoint, 'volume set xosan server.event-threads 8')
   await glusterCmd(glusterEndpoint, 'volume set xosan performance.io-thread-count 64')
   await glusterCmd(glusterEndpoint, 'volume set xosan performance.stat-prefetch on')
+  await glusterCmd(glusterEndpoint, 'volume set xosan performance.low-prio-threads 32')
   await glusterCmd(glusterEndpoint, 'volume set xosan features.shard on')
   await glusterCmd(glusterEndpoint, 'volume set xosan features.shard-block-size 512MB')
+  await glusterCmd(glusterEndpoint, 'volume set xosan user.cifs off')
   for (const confChunk of configByType[glusterType].extra) {
     await glusterCmd(glusterEndpoint, confChunk)
   }
