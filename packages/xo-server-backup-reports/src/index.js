@@ -115,7 +115,8 @@ class BackupReportsXoPlugin {
       reportWhen === 'fail' || // xo-web < 5
       reportWhen === 'failure'  // xo-web >= 5
 
-    let globalSize = 0
+    let globalMergeSize = 0
+    let globalTransferSize = 0
     let nFailures = 0
 
     const failedBackupsText = []
@@ -160,16 +161,25 @@ class BackupReportsXoPlugin {
         )
       } else if (!reportOnFailure) {
         const { returnedValue } = call
-        let size
+        let transferSize
         if (
           returnedValue != null &&
-          (size = returnedValue.size) !== undefined
+          (transferSize = returnedValue.transferSize) !== undefined
         ) {
-          globalSize += size
+          globalTransferSize += transferSize
           text.push(
-            `- **Size**: ${formatSize(size)}`,
-            `- **Speed**: ${formatSpeed(size, duration)}`
+            `- **Transfer size**: ${formatSize(transferSize)}`,
+            `- **Transfer speed**: ${formatSpeed(transferSize, returnedValue.transferDuration)}`
           )
+
+          const mergeSize = returnedValue.mergeSize
+          if (mergeSize !== undefined) {
+            globalMergeSize += mergeSize
+            text.push(
+              `- **Merge size**: ${formatSize(mergeSize)}`,
+              `- **Merge speed**: ${formatSpeed(mergeSize, returnedValue.mergeDuration)}`
+            )
+          }
         }
 
         successfulBackupText.push(
@@ -198,11 +208,16 @@ class BackupReportsXoPlugin {
       `- **Duration**: ${formatDuration(duration)}`,
       `- **Successes**: ${nSuccesses} / ${nCalls}`
     ]
-    if (globalSize !== 0) {
+    if (globalTransferSize !== 0) {
       markdown.push(
-        `- **Size**: ${formatSize(globalSize)}`,
-        `- **Speed**: ${formatSpeed(globalSize, duration)}`
+        `- **Transfer size**: ${formatSize(globalTransferSize)}`,
       )
+
+      if (globalMergeSize !== 0) {
+        markdown.push(
+          `- **Merge size**: ${formatSize(globalMergeSize)}`,
+        )
+      }
     }
     markdown.push('')
 
