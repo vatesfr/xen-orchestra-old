@@ -161,18 +161,15 @@ class BackupReportsXoPlugin {
         )
       } else if (!reportOnFailure) {
         const { returnedValue } = call
-        let transferSize
-        if (
-          returnedValue != null &&
-          (transferSize = returnedValue.transferSize) !== undefined
-        ) {
-          globalTransferSize += transferSize
-          text.push(
-            `- **Transfer size**: ${formatSize(transferSize)}`,
-            `- **Transfer speed**: ${formatSpeed(transferSize, returnedValue.transferDuration)}`
-          )
-
-          const mergeSize = returnedValue.mergeSize
+        if (returnedValue != null) {
+          const { mergeSize, transferSize } = returnedValue
+          if (transferSize !== undefined) {
+            globalTransferSize += transferSize
+            text.push(
+              `- **Transfer size**: ${formatSize(transferSize)}`,
+              `- **Transfer speed**: ${formatSpeed(transferSize, returnedValue.transferDuration)}`
+            )
+          }
           if (mergeSize !== undefined) {
             globalMergeSize += mergeSize
             text.push(
@@ -210,14 +207,13 @@ class BackupReportsXoPlugin {
     ]
     if (globalTransferSize !== 0) {
       markdown.push(
-        `- **Transfer size**: ${formatSize(globalTransferSize)}`,
+        `- **Transfer size**: ${formatSize(globalTransferSize)}`
       )
-
-      if (globalMergeSize !== 0) {
-        markdown.push(
-          `- **Merge size**: ${formatSize(globalMergeSize)}`,
-        )
-      }
+    }
+    if (globalMergeSize !== 0) {
+      markdown.push(
+        `- **Merge size**: ${formatSize(globalMergeSize)}`
+      )
     }
     markdown.push('')
 
