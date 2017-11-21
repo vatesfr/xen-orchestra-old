@@ -28,6 +28,7 @@ const GIGABYTE = 1024 * 1024 * 1024
 const XOSAN_VM_SYSTEM_DISK_SIZE = 10 * GIGABYTE
 const XOSAN_DATA_DISK_USEAGE_RATIO = 0.99
 const XOSAN_MAX_DISK_SIZE = 2093050 * 1024 * 1024 // a bit under 2To
+const XOSAN_LICENSE_QUOTA = 50 * GIGABYTE
 
 const CURRENT_POOL_OPERATIONS = {}
 
@@ -485,8 +486,42 @@ async function configureGluster (redundancy, ipAndHosts, glusterEndpoint, gluste
     await glusterCmd(glusterEndpoint, confChunk)
   }
   await glusterCmd(glusterEndpoint, 'volume start xosan')
+  await _setQuota(glusterEndpoint)
 }
 
+async function _setQuota (glusterEndpoint) {
+  await glusterCmd(glusterEndpoint, 'volume quota xosan enable', true)
+  await glusterCmd(glusterEndpoint, 'volume set xosan quota-deem-statfs on', true)
+  await glusterCmd(glusterEndpoint, `volume quota xosan limit-usage / ${XOSAN_LICENSE_QUOTA}B`, true)
+}
+
+async function _removeQuota (glusterEndpoint) {
+  await glusterCmd(glusterEndpoint, 'volume quota xosan disable', true)
+}
+
+async function _hasFullLicense (xosanSr) {
+  debug(xosanSr)
+  return true
+}
+
+export async function resyncQuota ({xosanSr}) {
+  const srObject = this.getXapi(xosanSr).getObject(xosanSr)
+  const glusterEndpoint = this::_getGlusterEndpoint(xosanSr)
+  if (await _hasFullLicense(srObject)) {
+    await _removeQuota(glusterEndpoint)
+  } else {
+    await _setQuota(glusterEndpoint)
+  }
+  await glusterEndpoint.xapi.call('SR.scan', glusterEndpoint.xapi.getObject(xosanSr).$ref)
+}
+
+resyncQuota.description = 'resync XOSAN quota with license'
+resyncQuota.permission = 'admin'
+resyncQuota.params = {
+  xosanSr: {
+    type: 'string'
+  }
+}
 export const createSR = defer.onFailure(async function ($onFailure, {
   template, pif, vlan, srs, glusterType,
   redundancy, brickSize = this::computeBrickSize(srs), memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
