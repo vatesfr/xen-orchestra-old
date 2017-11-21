@@ -2,6 +2,8 @@ import humanFormat from 'human-format'
 import moment from 'moment-timezone'
 import { forEach, startCase } from 'lodash'
 
+import pkg from '../package'
+
 export const configurationSchema = {
   type: 'object',
 
@@ -64,7 +66,7 @@ const logError = e => {
 class BackupReportsXoPlugin {
   constructor (xo) {
     this._xo = xo
-    this._report = ::this._wrapper
+    this._report = this._wrapper.bind(this)
   }
 
   configure ({ toMails, toXmpp }) {
@@ -236,6 +238,12 @@ class BackupReportsXoPlugin {
         ...successfulBackupText
       )
     }
+
+    markdown.push(
+      '---',
+      '',
+      `*${pkg.name} v${pkg.version}*`
+    )
 
     markdown = markdown.join('\n')
 
