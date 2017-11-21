@@ -32,6 +32,31 @@ const XOSAN_LICENSE_QUOTA = 50 * GIGABYTE
 
 const CURRENT_POOL_OPERATIONS = {}
 
+// TODO: implement
+async function _requestTrial () {
+  debug('************_requestTrial')
+  return 'ID_ID_ID'
+}
+
+// TODO: implement
+async function _useLicense (licenseId, xosanId) {
+  debug('*********_useLicense', licenseId, xosanId)
+}
+
+export async function removeQuota ({xosanSr}) {
+  const glusterEndpoint = this::_getGlusterEndpoint(xosanSr)
+  await _removeQuota(glusterEndpoint)
+  await glusterEndpoint.xapi.call('SR.scan', glusterEndpoint.xapi.getObject(xosanSr).$ref)
+}
+
+removeQuota.description = 'resync XOSAN quota with license'
+removeQuota.permission = 'admin'
+removeQuota.params = {
+  xosanSr: {
+    type: 'string'
+  }
+}
+
 function getXosanConfig (xosansr, xapi = this.getXapi(xosansr)) {
   const data = xapi.xo.getData(xosansr, 'xosan_config')
   if (data && data.networkPrefix === undefined) {
@@ -499,27 +524,6 @@ async function _removeQuota (glusterEndpoint) {
   await glusterCmd(glusterEndpoint, 'volume quota xosan disable', true)
 }
 
-async function _hasFullLicense (xosanSr) {
-  debug(xosanSr)
-  return true
-}
-
-export async function resyncQuota ({xosanSr}) {
-  const srObject = this.getXapi(xosanSr).getObject(xosanSr)
-  const glusterEndpoint = this::_getGlusterEndpoint(xosanSr)
-  if (await _hasFullLicense(srObject)) {
-    await _removeQuota(glusterEndpoint)
-  }
-  await glusterEndpoint.xapi.call('SR.scan', glusterEndpoint.xapi.getObject(xosanSr).$ref)
-}
-
-resyncQuota.description = 'resync XOSAN quota with license'
-resyncQuota.permission = 'admin'
-resyncQuota.params = {
-  xosanSr: {
-    type: 'string'
-  }
-}
 export const createSR = defer.onFailure(async function ($onFailure, {
   template, pif, vlan, srs, glusterType,
   redundancy, brickSize = this::computeBrickSize(srs), memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
@@ -536,6 +540,7 @@ export const createSR = defer.onFailure(async function ($onFailure, {
   if (srs.length < 1) {
     return // TODO: throw an error
   }
+  const licenseId = await this::_requestTrial()
   // '172.31.100.0' -> '172.31.100.'
   const networkPrefix = ipRange.split('.').slice(0, 3).join('.') + '.'
   let vmIpLastNumber = VM_FIRST_NUMBER
@@ -625,6 +630,7 @@ export const createSR = defer.onFailure(async function ($onFailure, {
     CURRENT_POOL_OPERATIONS[poolId] = {...OPERATION_OBJECT, state: 6}
     debug('scanning new SR')
     await xapi.call('SR.scan', xosanSrRef)
+    await this::_useLicense(licenseId, xapi.getObject(xosanSrRef).$id)
   } finally {
     delete CURRENT_POOL_OPERATIONS[poolId]
   }
