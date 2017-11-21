@@ -509,8 +509,6 @@ export async function resyncQuota ({xosanSr}) {
   const glusterEndpoint = this::_getGlusterEndpoint(xosanSr)
   if (await _hasFullLicense(srObject)) {
     await _removeQuota(glusterEndpoint)
-  } else {
-    await _setQuota(glusterEndpoint)
   }
   await glusterEndpoint.xapi.call('SR.scan', glusterEndpoint.xapi.getObject(xosanSr).$ref)
 }
