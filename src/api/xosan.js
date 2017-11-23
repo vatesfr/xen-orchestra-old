@@ -526,7 +526,7 @@ async function _removeQuota (glusterEndpoint) {
 
 export const createSR = defer.onFailure(async function ($onFailure, {
   template, pif, vlan, srs, glusterType,
-  redundancy, brickSize = this::computeBrickSize(srs), memorySize = 2 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
+  redundancy, brickSize = this::computeBrickSize(srs), memorySize = 4 * GIGABYTE, ipRange = DEFAULT_NETWORK_PREFIX + '.0'
 }) {
   const OPERATION_OBJECT = {
     operation: 'createSr',
@@ -827,7 +827,7 @@ replaceBrick.resolve = {
 
 async function _prepareGlusterVm (xapi, lvmSr, newVM, xosanNetwork, ipAddress, {
   labelSuffix = '', increaseDataDisk = true,
-  maxDiskSize = Infinity, memorySize = 2 * GIGABYTE
+  maxDiskSize = Infinity, memorySize = 4 * GIGABYTE
 }) {
   const host = lvmSr.$PBDs[0].$host
   const xenstoreData = {
@@ -938,7 +938,7 @@ const insertNewGlusterVm = defer.onFailure(async function ($onFailure, xapi, xos
     labelSuffix,
     increaseDataDisk,
     maxDiskSize: brickSize,
-    memorySize: vmsMemories.length ? _median(vmsMemories) : 2 * GIGABYTE
+    memorySize: vmsMemories.length ? _median(vmsMemories) : 4 * GIGABYTE
   })
   if (!glusterEndpoint) {
     glusterEndpoint = this::_getGlusterEndpoint(xosansr)
