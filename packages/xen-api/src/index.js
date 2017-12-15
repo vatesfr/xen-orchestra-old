@@ -94,7 +94,7 @@ class XapiError extends BaseError {
 
 export const wrapError = error => {
   let code, params
-  if (isArray(error)) {
+  if (isArray(error)) { // < XenServer 7.3
     [ code, ...params ] = error
   } else {
     code = error.message
