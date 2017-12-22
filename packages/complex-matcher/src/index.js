@@ -408,24 +408,8 @@ export const getPropertyClausesStrings = node => {
 
 // -------------------------------------------------------------------
 
-export const removePropertyClause = (node, name) => {
-  if (node === undefined || (node instanceof Property && node.name === name)) {
-    return
-  }
-
-  if (node instanceof And) {
-    return new And(node.children.filter(child =>
-      !(child instanceof Property && child.name === name)
-    ))
-  }
-
-  return node
-}
-
-// -------------------------------------------------------------------
-
 export const setPropertyClause = (node, name, child) => {
-  const property = new Property(
+  const property = child && new Property(
     name,
     typeof child === 'string' ? new StringNode(child) : child
   )
@@ -437,6 +421,8 @@ export const setPropertyClause = (node, name, child) => {
   const children = (node instanceof And ? node.children : [node]).filter(child =>
     !(child instanceof Property && child.name === name)
   )
-  children.push(property)
+  if (property !== undefined) {
+    children.push(property)
+  }
   return new And(children)
 }
