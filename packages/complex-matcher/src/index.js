@@ -182,6 +182,7 @@ export class StringNode extends Node {
     return formatString(this.value)
   }
 }
+export { StringNode as String }
 
 export class TruthyProperty extends Node {
   constructor (name) {

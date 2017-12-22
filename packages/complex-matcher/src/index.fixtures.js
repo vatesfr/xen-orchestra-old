@@ -1,20 +1,13 @@
-import {
-  And,
-  Not,
-  Or,
-  Property,
-  StringNode,
-  TruthyProperty,
-} from './'
+import * as CM from './'
 
 export const pattern = 'foo !"\\\\ \\"" name:|(wonderwoman batman) hasCape?'
 
-export const ast = new And([
-  new StringNode('foo'),
-  new Not(new StringNode('\\ "')),
-  new Property(
+export const ast = new CM.And([
+  new CM.String('foo'),
+  new CM.Not(new CM.String('\\ "')),
+  new CM.Property(
     'name',
-    new Or([new StringNode('wonderwoman'), new StringNode('batman')])
+    new CM.Or([new CM.String('wonderwoman'), new CM.String('batman')])
   ),
-  new TruthyProperty('hasCape'),
+  new CM.TruthyProperty('hasCape'),
 ])
