@@ -59,7 +59,7 @@ const RAW_STRING_CHARS = invoke(() => {
 const isRawString = string => {
   const { length } = string
   for (let i = 0; i < length; ++i) {
-    if (!RAW_STRING_CHARS[string[i]]) {
+    if (!(string[i] in RAW_STRING_CHARS)) {
       return false
     }
   }
