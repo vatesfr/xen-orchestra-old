@@ -13,7 +13,7 @@ Installation of the [npm package](https://npmjs.org/package/complex-matcher):
 ## Usage
 
 ```js
-import { parse } from 'complex-matcher'
+import { parse, createStringNode } from 'complex-matcher'
 
 const characters = [
   { name: 'Catwoman', costumeColor: 'black' },
@@ -27,6 +27,8 @@ characters.filter(predicate)
 // [
 //   { name: 'Superman', costumeColor: 'blue', hasCape: true },
 // ]
+
+createStringNode('foo').createPredicate()
 ```
 
 ## Development
