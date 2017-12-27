@@ -42,7 +42,7 @@ const match = (pattern: Pattern, value: any) => {
       }
     }
 
-    if (value === null && typeof value !== 'object') {
+    if (value === null || typeof value !== 'object') {
       return false
     }
 
