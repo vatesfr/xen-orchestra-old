@@ -6,13 +6,13 @@ export type Pattern = OrPattern | NotPattern | ObjectPattern | ArrayPattern | Va
 // one of the pattern must match
 type OrPattern = {| __or: Array<Pattern> |}
 
-// none of the pattern must match
+// the pattern must not  match
 type NotPattern = {| __not: Pattern |}
 
 // value is an object with properties matching the patterns
 type ObjectPattern = { [string]: Pattern }
 
-// value is an array and all patterns must match a different item
+// value is an array and each patterns must match a different item
 type ArrayPattern = Array<Pattern>
 
 // value equals the pattern
