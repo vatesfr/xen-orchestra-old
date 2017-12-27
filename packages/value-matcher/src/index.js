@@ -33,7 +33,7 @@ const match = (pattern: Pattern, value: any) => {
     if (length === 1) {
       const [ key ] = keys
       if (key === '__or') {
-        const orPattern : OrPattern = (pattern: any)
+        const orPattern: OrPattern = (pattern: any)
         return orPattern.__or.some(subpattern => match(subpattern, value))
       }
       if (key === '__not') {
