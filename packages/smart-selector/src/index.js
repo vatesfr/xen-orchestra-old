@@ -53,7 +53,7 @@ const createSelector = (inputSelectors, transform) => {
     cache = previousInputs
     previousInputs = {}
     {
-      const inputs = Object.keys(cache)
+      const inputs = keys(cache)
       const { length } = inputs
       if (length !== 0) {
         let i = 0
