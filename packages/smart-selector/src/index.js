@@ -1,47 +1,17 @@
-const makeSpy =
-  typeof Proxy !== 'undefined'
-    ? (obj, get) => new Proxy(obj, { get })
-    : (() => {
-      const {
-        create,
-        getOwnPropertyDescriptors = (() => {
-          const {
-            getOwnPropertyDescriptor,
-            getOwnPropertyNames,
-            getOwnPropertySymbols,
-          } = Object
-          const handleProperties = (obj, getProperties, descriptors) => {
-            if (getProperties === undefined) {
-              return
-            }
-            const properties = getProperties(obj)
-            for (let i = 0, n = properties.length; i < n; ++i) {
-              const property = properties[i]
-              descriptors[property] = getOwnPropertyDescriptor(obj, property)
-            }
-          }
-          return obj => {
-            const descriptors = {}
-            handleProperties(obj, getOwnPropertyNames, descriptors)
-            handleProperties(obj, getOwnPropertySymbols, descriptors)
-            return descriptors
-          }
-        })(),
-        keys,
-      } = Object
-      return (obj, get) => {
-        const descriptors = getOwnPropertyDescriptors(obj)
-        const properties = keys(descriptors)
-        for (let i = 0, n = properties.length; i < n; ++i) {
-          const property = properties[i]
-          const descriptor = descriptors[property]
-          delete descriptor.value
-          delete descriptor.writable
-          descriptor.get = () => get(obj, property)
-        }
-        return create(null, descriptors)
-      }
-    })()
+const { create, keys } = Object
+
+const makeSpy = (obj, get) => {
+  const descriptors = {}
+  const keys_ = keys(obj)
+  for (let i = 0, n = keys_.length; i < n; ++i) {
+    const key = keys_[i]
+    descriptors[key] = {
+      enumerable: true,
+      get: () => get(obj, key),
+    }
+  }
+  return create(null, descriptors)
+}
 
 const createSelector = (inputSelectors, transform) => {
   const previousArgs = [{}] // initialize with non-repeatable args
