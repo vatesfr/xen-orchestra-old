@@ -1,32 +1,27 @@
 const { create, keys } = Object
 
-const makeSpy = (obj, get) => {
-  const descriptors = {}
-  const keys_ = keys(obj)
-  for (let i = 0, n = keys_.length; i < n; ++i) {
-    const key = keys_[i]
-    descriptors[key] = {
-      enumerable: true,
-      get: () => get(obj, key),
-    }
-  }
-  return create(null, descriptors)
-}
-
 const createSelector = (inputSelectors, transform) => {
   const previousArgs = [{}] // initialize with non-repeatable args
   let cache, previousResult, previousThisArg
   let previousInputs = {}
-  const spy = makeSpy(
-    inputSelectors,
-    (inputs, input) =>
-      input in previousInputs
-        ? previousInputs[input]
-        : (previousInputs[input] =
-            input in cache
-              ? cache[input]
-              : inputs[input].apply(previousThisArg, previousArgs))
-  )
+
+  const spyDescriptors = {}
+  const inputs = keys(inputSelectors)
+  for (let i = 0, n = inputs.length; i < n; ++i) {
+    const input = inputs[i]
+    spyDescriptors[input] = {
+      enumerable: true,
+      get: () =>
+        input in previousInputs
+          ? previousInputs[input]
+          : (previousInputs[input] =
+              input in cache
+                ? cache[input]
+                : inputSelectors[input].apply(previousThisArg, previousArgs)),
+    }
+  }
+  const spy = create(null, spyDescriptors)
+
   function selector () {
     // handle arguments
     {
