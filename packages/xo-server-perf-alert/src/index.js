@@ -156,7 +156,7 @@ async function getServerTimestamp (xapi, host) {
 class PerfAlertXoPlugin {
   constructor (xo) {
     this._xo = xo
-    this._job = new CronJob({cronTime: '* * * * *', start: false, onTick: ::this._checkMonitors})
+    this._job = new CronJob({cronTime: '* * * * *', start: false, onTick: this._checkMonitors.bind(this)})
   }
 
   async configure (configuration) {
@@ -258,7 +258,7 @@ ${this.getEmailSignature()}`
     const logger = await this._xo.getLogger('perf')
     const alarmDefinitions = this._configuration.monitors.map(def => ({...def, object_type: 'vm'}))
 
-    const monitors = alarmDefinitions.map(::this.parseDefinition)
+    const monitors = alarmDefinitions.map(this.parseDefinition.bind(this))
 
     for (const monitor of monitors) {
       const vms = monitor.vmsToCheck()
