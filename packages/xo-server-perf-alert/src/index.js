@@ -73,10 +73,11 @@ export const configurationSchema = {
         type: 'object',
         properties: {
           uuids: {
-            title: 'VM UUID',
+            title: 'Virtual Machines',
             type: 'array',
             items: {
               type: 'string',
+              $type: 'VM',
             },
             default: ['0975c083-2bae-c03a-e5ff-5293780a70e7'],
           },
@@ -283,6 +284,18 @@ ${this.getEmailSignature()}
         }
         const lowerAlarm = (alarmID) => {
           console.log('lowering Alarm', alarmID)
+          this._xo.sendEmail({
+            to: this._configuration.toEmails,
+            subject: `[Xen Orchestra] − Performance Alert END`,
+            markdown: `
+## END OF ALERT ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}
+  * VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **${monitor.displayData(rrd, vm)}**
+### Description
+  ${monitor.vmFunction.description}
+${this.getEmailSignature()}
+              `,
+          })
+
         }
         raiseOrLowerAlarm(`${monitor.alarmID}|${vm.uuid}`, predicate, raiseAlarm, lowerAlarm)
       }

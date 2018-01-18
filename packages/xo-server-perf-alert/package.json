@@ -10,7 +10,6 @@
     "type": "git",
     "url": "https://github.com/vatesfr/xen-orchestra.git"
   },
-  "license": "AGPL-3.0",
   "main": "dist/",
   "bin": {},
   "files": [
