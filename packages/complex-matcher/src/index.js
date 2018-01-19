@@ -93,7 +93,15 @@ export class And extends Node {
     if (children.length === 1) {
       return children[0]
     }
-    this.children = children
+
+    const c = this.children = []
+    children.forEach(child => {
+      if (child instanceof And) {
+        c.push(...child.children)
+      } else {
+        c.push(child)
+      }
+    })
   }
 
   match (value) {
@@ -113,7 +121,15 @@ export class Or extends Node {
     if (children.length === 1) {
       return children[0]
     }
-    this.children = children
+
+    const c = this.children = []
+    children.forEach(child => {
+      if (child instanceof Or) {
+        c.push(...child.children)
+      } else {
+        c.push(child)
+      }
+    })
   }
 
   match (value) {
