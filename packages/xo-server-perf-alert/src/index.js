@@ -179,6 +179,9 @@ class PerfAlertXoPlugin {
         const def = this.parseDefinition(m)
         const list = await Promise.all(def.vmsToCheck().map(async vm => {
           const rrd = await this.getRRDForVm(vm, def.observationPeriod)
+          if (rrd === null) {
+            return `[${vm.name_label}](${this.generateVmUrl(vm)}) |  | **Can't read performance counters, is the VM up?**`
+          }
           const data = def.displayData(rrd, vm)
           const alarma = def.checkData(rrd, vm)
           return `[${vm.name_label}](${this.generateVmUrl(vm)}) | ${data} | ` + (alarma ? '**Alert Ongoing**' : 'no alert')
@@ -265,6 +268,21 @@ ${this.getEmailSignature()}`
       const vms = monitor.vmsToCheck()
       for (const vm of vms) {
         const rrd = await this.getRRDForVm(vm, monitor.observationPeriod)
+        const couldFindRRD = rrd !== null
+        raiseOrLowerAlarm(`${monitor.alarmID}|${vm.uuid}|RRD`, !couldFindRRD, () => {
+          this._xo.sendEmail({
+            to: this._configuration.toEmails,
+            subject: `[Xen Orchestra] − Performance Alert Secondary Issue`,
+            markdown: `
+## There was an issue when trying to check ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}
+  * VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **Can't read performance counters, is the VM up?**
+
+${this.getEmailSignature()} `,
+          })
+        }, () => {})
+        if (!couldFindRRD) {
+          continue
+        }
         const predicate = monitor.checkData(rrd, vm)
         const raiseAlarm = (alarmID) => {
           logger.error(`Performance: VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **${monitor.displayData(rrd, vm)}**`)
@@ -277,8 +295,7 @@ ${this.getEmailSignature()}`
   * VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **${monitor.displayData(rrd, vm)}**
 ### Description
   ${monitor.vmFunction.description}
-${this.getEmailSignature()}
-              `,
+${this.getEmailSignature()}`,
             })
           }
         }
@@ -295,7 +312,6 @@ ${this.getEmailSignature()}
 ${this.getEmailSignature()}
               `,
           })
-
         }
         raiseOrLowerAlarm(`${monitor.alarmID}|${vm.uuid}`, predicate, raiseAlarm, lowerAlarm)
       }
@@ -304,6 +320,9 @@ ${this.getEmailSignature()}
 
   async getRRDForVm (vm, secondsAgo) {
     const host = vm.$resident_on
+    if (host == null) {
+      return null
+    }
     // we get the xapi per host, because the alarms can check VMs in various pools
     const xapi = this._xo.getXapi(host.uuid)
     const serverTimestamp = await getServerTimestamp(xapi, host)
