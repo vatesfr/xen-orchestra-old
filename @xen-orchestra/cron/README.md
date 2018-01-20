@@ -26,6 +26,33 @@ const stop = Cron.schedule('@hourly', () => {
 }, 'UTC+05:30')
 ```
 
+### Pattern syntax
+
+```
+<minute> <hour> <day of month> <month> <day of week>
+```
+
+
+Each entry can be:
+
+- a single value
+- a range (`0-23` or `*/2`)
+- a list of values/ranges (`1,8-12`)
+
+A wildcard (`*`) can be use as a shortcut for the whole range
+(`first-last`).
+
+A step values can be used in conjunctions with ranges. For instance,
+`1-7/2` is the same as `1,3,5,7`.
+
+| Field            | Allowed values |
+|------------------|----------------|
+| minute           | 0-59           |
+| hour             | 0-23           |
+| day of the month | 1-31 or 3-letters names (`jan`, `feb`, …) |
+| month            | 1-12           |
+| day of week      | 0-7 (0 and 7 both mean Sunday) or 3-letters names (`mon`, `tue`, …) |
+
 ## Development
 
 ```
