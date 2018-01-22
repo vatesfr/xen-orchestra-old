@@ -50,8 +50,12 @@ A step values can be used in conjunctions with ranges. For instance,
 | minute           | 0-59           |
 | hour             | 0-23           |
 | day of the month | 1-31 or 3-letters names (`jan`, `feb`, …) |
-| month            | 1-12           |
+| month            | 0-11           |
 | day of week      | 0-7 (0 and 7 both mean Sunday) or 3-letters names (`mon`, `tue`, …) |
+
+> Note: the month range is 0-11 to be compatible with
+> [cron](https://github.com/kelektiv/node-cron), it does not appear to
+> be very standard though.
 
 ## Development
 

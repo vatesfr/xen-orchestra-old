@@ -58,6 +58,10 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
     const { aliasesRegExp } = field
     if (aliasesRegExp === undefined || isDigit(pattern[i])) {
       value = parseInteger()
+      const { post } = field
+      if (post !== undefined) {
+        value = post(value)
+      }
     } else {
       aliasesRegExp.lastIndex = i
       const matches = aliasesRegExp.exec(pattern)
@@ -71,10 +75,7 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
       value = field.aliases[alias]
     }
 
-    const { post, range } = field
-    if (post !== undefined) {
-      value = post(value)
-    }
+    const { range } = field
     if (value < range[0] || value > range[1]) {
       throw new SyntaxError(
         `${field.name}: ${value} is not between ${range[0]} and ${range[1]}`
@@ -171,6 +172,11 @@ export default createParser({
       aliases: 'jan feb mar apr may jun jul aug sep oct nov dec'.split(' '),
       name: 'month',
       range: [1, 12],
+
+      // this function is applied to numeric entries (not steps)
+      //
+      // currently parse month 0-11
+      post: value => value + 1,
     },
     {
       aliases: 'sun mon tue wen thu fri sat'.split(' '),
