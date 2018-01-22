@@ -42,7 +42,7 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
   const parseInteger = () => {
     let c
     const digits = []
-    while (isDigit((c = pattern[i]))) {
+    while (isDigit(c = pattern[i])) {
       ++i
       digits.push(c)
     }
