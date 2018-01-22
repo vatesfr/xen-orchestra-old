@@ -9,6 +9,8 @@ const NEXT_MAPPING = {
   minute: { hour: 1 },
 }
 
+const getFirst = values => values && values[0]
+
 const setFirstAvailable = (date, unit, values) => {
   if (values === undefined) {
     return date
@@ -25,34 +27,64 @@ const setFirstAvailable = (date, unit, values) => {
 }
 
 // returns the next run, after the passed date
-export default (schedule, date) => {
-  // start with the next minute
-  date = date
+export default (schedule, fromDate) => {
+  let date = fromDate
     .set({
       second: 0,
       millisecond: 0,
     })
     .plus({ minute: 1 })
 
-  date = setFirstAvailable(date, 'minute', schedule.minute)
+  const { minute, hour, dayOfMonth, month, dayOfWeek } = schedule
+  date = setFirstAvailable(date, 'minute', minute)
 
-  date = setFirstAvailable(date, 'hour', schedule.hour)
+  let tmp
 
-  const applyMonth = date => setFirstAvailable(date, 'month', schedule.month)
-
-  const { dayOfMonth, dayOfWeek } = schedule
-  if (dayOfMonth !== undefined) {
-    if (dayOfWeek !== undefined) {
-      return DateTime.min(
-        applyMonth(setFirstAvailable(date, 'day', dayOfMonth)),
-        applyMonth(setFirstAvailable(date, 'weekday', dayOfWeek))
-      )
-    }
-
-    date = setFirstAvailable(date, 'day', dayOfMonth)
-  } else {
-    date = setFirstAvailable(date, 'weekday', dayOfWeek)
+  tmp = setFirstAvailable(date, 'hour', hour)
+  if (tmp !== date) {
+    date = tmp.set({
+      minute: getFirst(minute),
+    })
   }
 
-  return applyMonth(date)
+  let loop
+  let i = 0
+  do {
+    loop = false
+
+    tmp = setFirstAvailable(date, 'month', month)
+    if (tmp !== date) {
+      date = tmp.set({
+        day: 1,
+        hour: getFirst(hour),
+        minute: getFirst(minute),
+      })
+    }
+
+    if (dayOfMonth === undefined) {
+      if (dayOfWeek !== undefined) {
+        tmp = setFirstAvailable(date, 'weekday', dayOfWeek)
+      }
+    } else if (dayOfWeek === undefined) {
+      tmp = setFirstAvailable(date, 'day', dayOfMonth)
+    } else {
+      tmp = DateTime.min(
+        setFirstAvailable(date, 'day', dayOfMonth),
+        setFirstAvailable(date, 'weekday', dayOfWeek)
+      )
+    }
+    if (tmp !== date) {
+      loop = tmp.month !== date.month
+      date = tmp.set({
+        hour: getFirst(hour),
+        minute: getFirst(minute),
+      })
+    }
+  } while (loop && ++i < 5)
+
+  if (loop) {
+    throw new Error('no solutions found for this schedule')
+  }
+
+  return date
 }

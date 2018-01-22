@@ -21,8 +21,16 @@ describe('parse()', () => {
     })
   })
 
+  it('correctly parse days', () => {
+    expect(parse('* * * * mon,sun')).toEqual({
+      dayOfWeek: [1, 7],
+    })
+  })
+
   it('reports missing integer', () => {
-    expect(() => parse('*/a')).toThrow('minute: missing integer at character 2')
+    expect(() => parse('*/a')).toThrow(
+      'minute: missing integer at character 2'
+    )
     expect(() => parse('*')).toThrow('hour: missing integer at character 1')
   })
 

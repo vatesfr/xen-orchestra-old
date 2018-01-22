@@ -42,7 +42,7 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
   const parseInteger = () => {
     let c
     const digits = []
-    while (isDigit(c = pattern[i])) {
+    while (isDigit((c = pattern[i]))) {
       ++i
       digits.push(c)
     }
@@ -142,7 +142,9 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
 
       consumeWhitespaces()
       if (i !== n) {
-        throw new SyntaxError(`unexpected character at offset ${i}, expected end`)
+        throw new SyntaxError(
+          `unexpected character at offset ${i}, expected end`
+        )
       }
 
       return schedule
@@ -179,7 +181,7 @@ export default createParser({
       post: value => value + 1,
     },
     {
-      aliases: 'sun mon tue wen thu fri sat'.split(' '),
+      aliases: 'mon tue wen thu fri sat sun'.split(' '),
       name: 'dayOfWeek',
       post: value => (value === 0 ? 7 : value),
       range: [1, 7],

@@ -6,11 +6,8 @@ import { DateTime } from 'luxon'
 import next from './next'
 import parse from './parse'
 
-const N = pattern =>
-  next(
-    parse(pattern),
-    DateTime.fromISO('2018-01-01T00:00', { zone: 'utc' })
-  ).toISO({
+const N = (pattern, fromDate = '2018-01-01T00:00') =>
+  next(parse(pattern), DateTime.fromISO(fromDate, { zone: 'utc' })).toISO({
     includeOffset: false,
     suppressMilliseconds: true,
     suppressSeconds: true,
@@ -19,12 +16,12 @@ const N = pattern =>
 describe('next()', () => {
   mapValues(
     {
-      'every minutes': ['* * * * *', '2018-01-01T00:01'],
-      'every hours': ['0 * * * *', '2018-01-01T01:00'],
-      'every days': ['0 0 * * *', '2018-01-02T00:00'],
-      'every months': ['0 0 1 * *', '2018-02-01T00:00'],
-      'every years': ['0 0 1 jan *', '2019-01-01T00:00'],
-      'every monday': ['0 0 * * 1', '2018-01-08T00:00'],
+      minutely: ['* * * * *', '2018-01-01T00:01'],
+      hourly: ['@hourly', '2018-01-01T01:00'],
+      daily: ['@daily', '2018-01-02T00:00'],
+      monthly: ['@monthly', '2018-02-01T00:00'],
+      yearly: ['0 0 1 jan *', '2019-01-01T00:00'],
+      weekly: ['0 0 * * mon', '2018-01-08T00:00'],
     },
     ([pattern, result], title) =>
       it(title, () => {
@@ -33,11 +30,17 @@ describe('next()', () => {
   )
 
   it('select first between month-day and week-day', () => {
-    expect(N('0 0 1 * 1')).toBe('2018-01-08T00:00')
-    expect(N('0 0 2 * 1')).toBe('2018-01-02T00:00')
+    expect(N('0 0 1 * mon')).toBe('2018-01-08T00:00')
+    expect(N('0 0 2 * mon')).toBe('2018-01-02T00:00')
   })
 
   it('select the last available day of a month', () => {
-    expect(N('0 0 31 feb *')).toBe('2018-02-28T00:00')
+    expect(N('0 0 29 feb *')).toBe('2020-02-29T00:00')
+  })
+
+  it('fails when no solutions has been found', () => {
+    expect(() => N('0 0 30 feb *')).toThrow(
+      'no solutions found for this schedule'
+    )
   })
 })
