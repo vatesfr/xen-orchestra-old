@@ -36,4 +36,8 @@ describe('next()', () => {
     expect(N('0 0 1 * 1')).toBe('2018-01-08T00:00')
     expect(N('0 0 2 * 1')).toBe('2018-01-02T00:00')
   })
+
+  it('select the last available day of a month', () => {
+    expect(N('0 0 31 feb *')).toBe('2018-02-28T00:00')
+  })
 })
