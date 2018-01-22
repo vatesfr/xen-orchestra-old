@@ -32,6 +32,13 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
   const isDigit = c => c >= '0' && c <= '9'
   const match = c => pattern[i] === c && (++i, true)
 
+  const consumeWhitespaces = () => {
+    let c
+    while ((c = pattern[i]) === ' ' || c === '\t') {
+      ++i
+    }
+  }
+
   const parseInteger = () => {
     let c
     const digits = []
@@ -40,7 +47,7 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
       digits.push(c)
     }
     if (digits.length === 0) {
-      throw new SyntaxError(`${field.name}: missing digit at character ${i}`)
+      throw new SyntaxError(`${field.name}: missing integer at character ${i}`)
     }
     return Number.parseInt(digits.join(''), 10)
   }
@@ -48,10 +55,10 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
   const parseValue = () => {
     let value
 
-    if (isDigit(pattern[i])) {
+    const { aliasesRegExp } = field
+    if (aliasesRegExp === undefined || isDigit(pattern[i])) {
       value = parseInteger()
     } else {
-      const { aliasesRegExp } = field
       aliasesRegExp.lastIndex = i
       const matches = aliasesRegExp.exec(pattern)
       if (matches === null) {
@@ -69,7 +76,7 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
       value = post(value)
     }
     if (value < range[0] || value > range[1]) {
-      throw new Error(
+      throw new SyntaxError(
         `${field.name}: ${value} is not between ${range[0]} and ${range[1]}`
       )
     }
@@ -100,11 +107,6 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
   }
 
   const parseSequence = () => {
-    let c
-    while ((c = pattern[i]) === ' ' || c === '\t') {
-      ++i
-    }
-
     do {
       parseRange()
     } while (match(','))
@@ -126,14 +128,20 @@ const createParser = ({ fields: [...fields], presets: { ...presets } }) => {
       pattern = p
       schedule = {}
 
-      // eslint-disable-next-line no-unmodified-loop-condition
-      for (let j = 0; i < n && j < m; ++j) {
+      for (let j = 0; j < m; ++j) {
+        consumeWhitespaces()
+
         field = fields[j]
         values = new Set()
         parseSequence()
         if (values.size !== 0) {
           schedule[field.name] = Array.from(values).sort(compareNumbers)
         }
+      }
+
+      consumeWhitespaces()
+      if (i !== n) {
+        throw new SyntaxError(`unexpected character at offset ${i}, expected end`)
       }
 
       return schedule
