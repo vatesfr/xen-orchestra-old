@@ -186,11 +186,11 @@ export default createParser({
     },
   ],
   presets: {
-    '@annually': '0 0 1 1',
-    '@daily': '0 0',
-    '@hourly': '0',
-    '@monthly': '0 0 1',
-    '@weekly': '0 0 * * 0',
-    '@yearly': '0 0 1 1',
+    '@annually': '0 0 1 jan *',
+    '@daily': '0 0 * * *',
+    '@hourly': '0 * * * *',
+    '@monthly': '0 0 1 * *',
+    '@weekly': '0 0 * * sun',
+    '@yearly': '0 0 1 jan *',
   },
 })
