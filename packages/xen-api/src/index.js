@@ -799,7 +799,7 @@ export class Xapi extends EventEmitter {
     }
   }
 
-  _removeObject (ref, type) {
+  _removeObject (type, ref) {
     const byRefs = this._objectsByRefs
     const object = byRefs[ref]
     if (object !== undefined) {
@@ -844,7 +844,7 @@ export class Xapi extends EventEmitter {
       if (task !== this._nTasks) {
         forEach(this.objects.all, object => {
           if (object.$type === 'task') {
-            this._removeObject(object.$type, object.$ref)
+            this._removeObject('task', object.$ref)
           }
         })
 
