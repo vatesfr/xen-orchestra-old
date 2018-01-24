@@ -848,7 +848,7 @@ export class Xapi extends EventEmitter {
           }
         })
 
-        this._sessionCall('task.get_all_records', []).then(tasks => {
+        this._sessionCall('task.get_all_records').then(tasks => {
           forEach(tasks, (task, ref) => {
             this._addObject('task', ref, task)
           })
