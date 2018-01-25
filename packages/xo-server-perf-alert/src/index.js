@@ -98,7 +98,7 @@ const HOST_FUNCTIONS = {
         },
       }
     },
-  }
+  },
 }
 
 const TYPE_FUNCTION_MAP = {
@@ -249,12 +249,12 @@ class PerfAlertXoPlugin {
     clearCurrentAlarms()
   }
 
-  _generateVmUrl (vm) {
-    return `${this._configuration.serverUrl}#/vms/${vm.uuid}/stats`
-  }
-
-  _generateHostUrl (host) {
-    return `${this._configuration.serverUrl}#/hosts/${host.uuid}/stats`
+  _generateUrl (type, object) {
+    const map = {
+      vm: () => `${this._configuration.serverUrl}#/vms/${object.uuid}/stats`,
+      host: () => `${this._configuration.serverUrl}#/hosts/${object.uuid}/stats`
+    }
+    return map[type]()
   }
 
   _getEmailSignature () {
@@ -262,55 +262,19 @@ class PerfAlertXoPlugin {
   }
 
   async test () {
-    const vmMonitorPart = await Promise.all(map(this._getVmMonitors(), async def => {
-      const vmList = await Promise.all(def.objectsToCheck().map(async vm => {
-        const rrd = await this.getRRD(vm, def.observationPeriod, false)
-        if (rrd === null) {
-          return `[${vm.name_label}](${this._generateVmUrl(vm)}) |  | **Can't read performance counters, is the VM up?**`
-        }
-        const data = def.displayData(rrd, vm.uuid)
-        const alarma = def.checkData(rrd, vm.uuid)
-        return `[${vm.name_label}](${this._generateVmUrl(vm)}) | ${data} | ` + (alarma ? '**Alert Ongoing**' : 'no alert')
-      }))
-      const hostList = await Promise.all(def.objectsToCheck().map(async vm => {}))
-
+    const hostMonitorPart2 = await Promise.all(map(this._getMonitors(), async m => {
+      const hostList = (await m.snapshot()).map(entry => entry.tableItem)
       return `
-## Monitor for VM ${def.variable_name} ${def.vmFunction.comparator} ${def.alarm_trigger_level}${def.vmFunction.unit}
-List of the virtual machines that we could check:
+## Monitor for ${m.title}
 
-VM  | Value | Alert
---- | -----:| ---:
-${vmList.join('\n')}
-List of the hosts that we could check:
-
-host  | Value | Alert
---- | -----:| ---:
-${hostList.join('\\n')}
-`
-    }))
-    const hostMonitorPart = await Promise.all(map(this._getHostMonitors(), async def => {
-      const hostList = await Promise.all(def.objectsToCheck().map(async host => {
-        const rrd = await this.getRRD(host, def.observationPeriod, true)
-        if (rrd === null) {
-          return `[${host.name_label}](${this._generateHostUrl(host)}) |  | **Can't read performance counters**`
-        }
-        const data = def.displayData(rrd, host.uuid)
-        const alarma = def.checkData(rrd, host.uuid)
-        return `[${host.name_label}](${this._generateVmUrl(host)}) | ${data} | ` + (alarma ? '**Alert Ongoing**' : 'no alert')
-      }))
-      return `
-## Monitor for Host ${def.variable_name} ${def.vmFunction.comparator} ${def.alarm_trigger_level}${def.vmFunction.unit}
-List of the hosts that we could check:
-
-Host  | Value | Alert
---- | -----:| ---:
+${m.tableHeader}
 ${hostList.join('\\n')}`
     }))
+
     this._sendAlertEmail('TEST', `
 # Performance Alert Test
 Your alarms and their current status:
-${vmMonitorPart.join('\n')}
-${hostMonitorPart.join('\n')}`)
+${hostMonitorPart2.join('\n')}`)
   }
 
   load () {
@@ -323,6 +287,7 @@ ${hostMonitorPart.join('\n')}`)
 
   _parseDefinition (definition) {
     const alarmID = `${definition.object_type}|${definition.variable_name}|${definition.alarm_trigger_level}`
+    const typeFunction = TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name]
     const parseData = (result, uuid) => {
       const parsedLegend = result.meta.legend.map((l, index) => {
         const [operation, type, uuid, name] = l.split(':')
@@ -345,84 +310,84 @@ ${hostMonitorPart.join('\n')}`)
         const relatedNode = getNode(root, l.relatedEntity)
         relatedNode[l.name] = l
       })
-      const vmFunction = TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name]
-      const parser = vmFunction.createParser(parsedLegend.filter(l => l.uuid === uuid), definition.alarm_trigger_level)
+      const parser = typeFunction.createParser(parsedLegend.filter(l => l.uuid === uuid), definition.alarm_trigger_level)
       result.data.forEach(d => parser.parseRow(d))
       return parser
     }
+    const objectsToCheck = () => definition.uuids.map(uuid => this._xo.getXapi(uuid).getObject(uuid))
+    const observationPeriod = definition.alarm_trigger_period !== undefined ? definition.alarm_trigger_period : 60
+    const typeText = definition.object_type === 'host' ? 'Host' : 'VM'
     return {
       ...definition,
       alarmID,
-      vmFunction: TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name],
-      objectsToCheck: () => definition.uuids.map(uuid => this._xo.getXapi(uuid).getObject(uuid)),
-      observationPeriod: definition.alarm_trigger_period !== undefined ? definition.alarm_trigger_period : 60,
-      displayData: (result, uuid) => parseData(result, uuid).getDisplayableValue().toFixed(1) + TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name].unit,
-      checkData: (result, uuid) => {
-        const parser = parseData(result, uuid)
-        return parser.shouldAlarm()
+      vmFunction: typeFunction,
+      title: `${typeText} ${definition.variable_name} ${typeFunction.comparator} ${definition.alarm_trigger_level}${typeFunction.unit}`,
+      tableHeader: `${typeText}  | Value | Alert\n--- | -----:| ---:`,
+      snapshot: async () => {
+        return Promise.all(map(objectsToCheck(), async monitoredObject => {
+          const objectLink = `[${monitoredObject.name_label}](${this._generateUrl(definition.object_type, monitoredObject)})`
+          const rrd = await this.getRRD(monitoredObject, observationPeriod, definition.object_type === 'host')
+          const couldFindRRD = rrd !== null
+          const result = {
+            object: monitoredObject,
+            couldFindRRD,
+            objectLink: objectLink,
+            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: **Can't read performance counters**`,
+            tableItem: `${objectLink} | - | **Can't read performance counters**`
+          }
+          if (!couldFindRRD) {
+            return result
+          }
+          const data = parseData(rrd, monitoredObject.uuid)
+          const textValue = data.getDisplayableValue().toFixed(1) + typeFunction.unit
+          const shouldAlarm = data.shouldAlarm()
+          return {
+            ...result,
+            value: data.getDisplayableValue(),
+            shouldAlarm: shouldAlarm,
+            textValue: textValue,
+            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: ${textValue}`,
+            tableItem: `${objectLink} | ${textValue} | ${shouldAlarm ? '**Alert Ongoing**' : 'no alert'}`
+          }
+        }))
       },
     }
   }
 
-  _getHostMonitors () {
-    return map(this._configuration.hostMonitors, def => this._parseDefinition({...def, object_type: 'host'}))
-  }
-
-  _getVmMonitors () {
-    return map(this._configuration.vmMonitors, def => this._parseDefinition({...def, object_type: 'vm'}))
+  _getMonitors () {
+    return map(this._configuration.hostMonitors, def => this._parseDefinition({...def, object_type: 'host'})).concat(
+      map(this._configuration.vmMonitors, def => this._parseDefinition({...def, object_type: 'vm'})))
   }
 
   async _checkMonitors () {
-    const hostDisplay = {
-      createObjectListItem: (monitoredObject, monitor, finalValue) =>
-        `  * Host [${monitoredObject.name_label}](${this._generateHostUrl(monitoredObject)}) ${monitor.variable_name}: ${finalValue}`,
-      createMonitorTitle: (monitor) =>
-        `Host ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}`,
-      objectName: 'host',
-    }
-    const vmDisplay = {
-      createObjectListItem: (monitoredObject, monitor, finalValue) =>
-        `  * VM [${monitoredObject.name_label}](${this._generateVmUrl(monitoredObject)}) ${monitor.variable_name}: ${finalValue}`,
-      createMonitorTitle: (monitor) =>
-        `VM ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}`,
-      objectName: 'VM',
-    }
-    const displayPerType = {
-      host: hostDisplay,
-      vm: vmDisplay,
-    }
-    const monitors = this._getHostMonitors().concat(this._getVmMonitors())
+    const monitors = this._getMonitors()
     for (const monitor of monitors) {
-      const display = displayPerType[monitor.object_type]
-      const objects = monitor.objectsToCheck()
-      for (const monitoredObject of objects) {
-        const rrd = await this.getRRD(monitoredObject, monitor.observationPeriod, monitor.object_type === 'host')
-        const couldFindRRD = rrd !== null
-        raiseOrLowerAlarm(`${monitor.alarmID}|${monitoredObject.uuid}|RRD`, !couldFindRRD, () => {
+      const snapshot = await monitor.snapshot()
+      for (const entry of snapshot) {
+        raiseOrLowerAlarm(`${monitor.alarmID}|${entry.object.uuid}|RRD`, !entry.couldFindRRD, () => {
           this._sendAlertEmail('Secondary Issue', `
-## There was an issue when trying to check ${display.createMonitorTitle(monitor)}
-${display.createObjectListItem(monitoredObject, monitor, `**Can't read performance counters, is the ${display.objectName} up?**`)}`)
+## There was an issue when trying to check ${monitor.title}
+${entry.listItem}`)
         }, () => {})
-        if (!couldFindRRD) {
+        if (!entry.couldFindRRD) {
           continue
         }
-        const predicate = monitor.checkData(rrd, monitoredObject.uuid)
         const raiseAlarm = (alarmID) => {
           this._sendAlertEmail('', `
-## ALERT ${display.createMonitorTitle(monitor)}
-${display.createObjectListItem(monitoredObject, monitor, `**${monitor.displayData(rrd, monitoredObject.uuid)}**`)}
+## ALERT ${monitor.title}
+${entry.listItem}
 ### Description
   ${monitor.vmFunction.description}`)
         }
         const lowerAlarm = (alarmID) => {
           console.log('lowering Alarm', alarmID)
           this._sendAlertEmail('END OF ALERT', `
-## END OF ALERT ${display.createMonitorTitle(monitor)}
-${display.createObjectListItem(monitoredObject, monitor, `**${monitor.displayData(rrd, monitoredObject.uuid)}**`)}
+## END OF ALERT ${monitor.title}
+${entry.listItem}
 ### Description
   ${monitor.vmFunction.description}`)
         }
-        raiseOrLowerAlarm(`${monitor.alarmID}|${monitoredObject.uuid}`, predicate, raiseAlarm, lowerAlarm)
+        raiseOrLowerAlarm(`${monitor.alarmID}|${entry.object.uuid}`, entry.shouldAlarm, raiseAlarm, lowerAlarm)
       }
     }
   }
