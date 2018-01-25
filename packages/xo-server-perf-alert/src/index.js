@@ -78,6 +78,27 @@ const HOST_FUNCTIONS = {
       }
     },
   },
+  memory_usage: {
+    description: 'Raises an alarm when the used memory % is higher than the threshold',
+    unit: '% used',
+    comparator: '>',
+    createParser: (legend, threshold) => {
+      const memoryKBytesLegend = legend.find(l => l.name === 'memory_total_kib')
+      const memoryKBytesFreeLegend = legend.find(l => l.name === 'memory_free_kib')
+      const usedMemoryRatio = []
+      const getDisplayableValue = () => mean(usedMemoryRatio) * 100
+      return {
+        parseRow: (data) => {
+          const memory = data.values[memoryKBytesLegend.index]
+          usedMemoryRatio.push((memory - data.values[memoryKBytesFreeLegend.index]) / memory)
+        },
+        getDisplayableValue,
+        shouldAlarm: () => {
+          return getDisplayableValue() > threshold
+        },
+      }
+    },
+  }
 }
 
 const TYPE_FUNCTION_MAP = {
