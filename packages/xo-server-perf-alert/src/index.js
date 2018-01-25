@@ -252,7 +252,7 @@ class PerfAlertXoPlugin {
   _generateUrl (type, object) {
     const map = {
       vm: () => `${this._configuration.serverUrl}#/vms/${object.uuid}/stats`,
-      host: () => `${this._configuration.serverUrl}#/hosts/${object.uuid}/stats`
+      host: () => `${this._configuration.serverUrl}#/hosts/${object.uuid}/stats`,
     }
     return map[type]()
   }
@@ -333,7 +333,7 @@ ${hostMonitorPart2.join('\n')}`)
             couldFindRRD,
             objectLink: objectLink,
             listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: **Can't read performance counters**`,
-            tableItem: `${objectLink} | - | **Can't read performance counters**`
+            tableItem: `${objectLink} | - | **Can't read performance counters**`,
           }
           if (!couldFindRRD) {
             return result
@@ -347,7 +347,7 @@ ${hostMonitorPart2.join('\n')}`)
             shouldAlarm: shouldAlarm,
             textValue: textValue,
             listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: ${textValue}`,
-            tableItem: `${objectLink} | ${textValue} | ${shouldAlarm ? '**Alert Ongoing**' : 'no alert'}`
+            tableItem: `${objectLink} | ${textValue} | ${shouldAlarm ? '**Alert Ongoing**' : 'no alert'}`,
           }
         }))
       },
