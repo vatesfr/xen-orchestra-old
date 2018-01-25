@@ -3,6 +3,7 @@ import { CronJob } from 'cron'
 import { utcParse } from 'd3-time-format'
 import {
   forOwn,
+  map,
   mean,
 } from 'lodash'
 
@@ -53,6 +54,37 @@ const VM_FUNCTIONS = {
   },
 }
 
+const HOST_FUNCTIONS = {
+  cpu_usage: {
+    description: 'Raises an alarm when the average usage of any CPU is higher than the threshold',
+    unit: '%',
+    comparator: '>',
+    createParser: (legend, threshold) => {
+      const regex = /^cpu[0-9]+$/
+      const filteredLegends = legend.filter(l => l.name.match(regex))
+      const accumulator = Object.assign(...filteredLegends.map(l => ({[l.name]: []})))
+      const getDisplayableValue = () => {
+        const means = Object.keys(accumulator).map(l => mean(accumulator[l]))
+        return Math.max(...means) * 100
+      }
+      return {
+        parseRow: (data) => {
+          filteredLegends.forEach(l => {
+            accumulator[l.name].push(data.values[l.index])
+          })
+        },
+        getDisplayableValue,
+        shouldAlarm: () => getDisplayableValue() > threshold,
+      }
+    },
+  },
+}
+
+const TYPE_FUNCTION_MAP = {
+  vm: VM_FUNCTIONS,
+  host: HOST_FUNCTIONS,
+}
+
 // list of currently ringing alarms, to avoid double notification
 const currentAlarms = {}
 
@@ -64,7 +96,48 @@ export const configurationSchema = {
       title: 'Xen Orchestra URL',
       description: 'URL used in alert messages to quickly get to the VMs (ex: http://192.168.100.244:9000/ )',
     },
-    monitors: {
+    hostMonitors: {
+      type: 'array',
+      title: 'Host Monitors',
+      description: 'Alarms checking hosts on all pools. The selected performance counter is sampled regularly and averaged. ' +
+      'The Average is compared to the threshold and an alarm is raised upon crossing',
+      items: {
+        type: 'object',
+        properties: {
+          uuids: {
+            title: 'Hosts',
+            type: 'array',
+            items: {
+              type: 'string',
+              $type: 'Host',
+            },
+            default: ['77b3f6ad-020b-4e48-b090-74b2a26c4f69'],
+          },
+          variable_name: {
+            title: 'Alarm Type',
+            description: '<dl>' + Object.keys(HOST_FUNCTIONS).map(k =>
+              `<dt>${k} (${HOST_FUNCTIONS[k].unit}): </dt><dd>${HOST_FUNCTIONS[k].description}</dd>`).join(' ') + '</dl>',
+            type: 'string',
+            default: 'cpu_usage',
+            enum: Object.keys(HOST_FUNCTIONS),
+          },
+          alarm_trigger_level: {
+            title: 'Threshold',
+            description: 'The direction of the crossing is given by the Alarm type',
+            type: 'number',
+            default: 40,
+          },
+          alarm_trigger_period: {
+            title: 'Average Length (s)',
+            description: 'The points are averaged this number of seconds then the average is compared with the threshold',
+            type: 'number',
+            default: 60,
+            enum: [60, 600],
+          },
+        },
+      },
+    },
+    vmMonitors: {
       type: 'array',
       title: 'VM Monitors',
       description: 'Alarms checking all VMs on all pools. The selected performance counter is sampled regularly and averaged. ' +
@@ -116,16 +189,6 @@ export const configurationSchema = {
       },
       minItems: 1,
     },
-    toXmpp: {
-      type: 'array',
-      title: 'xmpp address',
-      description: 'an array of recipients (xmpp)',
-
-      items: {
-        type: 'string',
-      },
-      minItems: 1,
-    },
   },
 }
 
@@ -165,46 +228,68 @@ class PerfAlertXoPlugin {
     clearCurrentAlarms()
   }
 
-  generateVmUrl (vm) {
+  _generateVmUrl (vm) {
     return `${this._configuration.serverUrl}#/vms/${vm.uuid}/stats`
   }
 
-  getEmailSignature () {
+  _generateHostUrl (host) {
+    return `${this._configuration.serverUrl}#/hosts/${host.uuid}/stats`
+  }
+
+  _getEmailSignature () {
     return `\n\n\nSent from Xen Orchestra [perf-alert plugin](${this._configuration.serverUrl}#/settings/plugins)\n`
   }
 
   async test () {
-    if (this._configuration.toEmails !== undefined && this._xo.sendEmail !== undefined) {
-      const monitorPart = await Promise.all(this._configuration.monitors.map(async m => {
-        const def = this.parseDefinition(m)
-        const list = await Promise.all(def.vmsToCheck().map(async vm => {
-          const rrd = await this.getRRDForVm(vm, def.observationPeriod)
-          if (rrd === null) {
-            return `[${vm.name_label}](${this.generateVmUrl(vm)}) |  | **Can't read performance counters, is the VM up?**`
-          }
-          const data = def.displayData(rrd, vm)
-          const alarma = def.checkData(rrd, vm)
-          return `[${vm.name_label}](${this.generateVmUrl(vm)}) | ${data} | ` + (alarma ? '**Alert Ongoing**' : 'no alert')
-        }))
-        return `
-## Monitor for: ${m.variable_name} ${def.vmFunction.comparator} ${m.alarm_trigger_level}${def.vmFunction.unit}
+    const vmMonitorPart = await Promise.all(map(this._getVmMonitors(), async def => {
+      const vmList = await Promise.all(def.objectsToCheck().map(async vm => {
+        const rrd = await this.getRRD(vm, def.observationPeriod, false)
+        if (rrd === null) {
+          return `[${vm.name_label}](${this._generateVmUrl(vm)}) |  | **Can't read performance counters, is the VM up?**`
+        }
+        const data = def.displayData(rrd, vm.uuid)
+        const alarma = def.checkData(rrd, vm.uuid)
+        return `[${vm.name_label}](${this._generateVmUrl(vm)}) | ${data} | ` + (alarma ? '**Alert Ongoing**' : 'no alert')
+      }))
+      const hostList = await Promise.all(def.objectsToCheck().map(async vm => {}))
+
+      return `
+## Monitor for VM ${def.variable_name} ${def.vmFunction.comparator} ${def.alarm_trigger_level}${def.vmFunction.unit}
 List of the virtual machines that we could check:
 
 VM  | Value | Alert
 --- | -----:| ---:
-${list.join('\n')}`
+${vmList.join('\n')}
+List of the hosts that we could check:
+
+host  | Value | Alert
+--- | -----:| ---:
+${hostList.join('\\n')}
+`
+    }))
+    const hostMonitorPart = await Promise.all(map(this._getHostMonitors(), async def => {
+      const hostList = await Promise.all(def.objectsToCheck().map(async host => {
+        const rrd = await this.getRRD(host, def.observationPeriod, true)
+        if (rrd === null) {
+          return `[${host.name_label}](${this._generateHostUrl(host)}) |  | **Can't read performance counters**`
+        }
+        const data = def.displayData(rrd, host.uuid)
+        const alarma = def.checkData(rrd, host.uuid)
+        return `[${host.name_label}](${this._generateVmUrl(host)}) | ${data} | ` + (alarma ? '**Alert Ongoing**' : 'no alert')
       }))
-      const message = `
+      return `
+## Monitor for Host ${def.variable_name} ${def.vmFunction.comparator} ${def.alarm_trigger_level}${def.vmFunction.unit}
+List of the hosts that we could check:
+
+Host  | Value | Alert
+--- | -----:| ---:
+${hostList.join('\\n')}`
+    }))
+    this._sendAlertEmail('TEST', `
 # Performance Alert Test
 Your alarms and their current status:
-${monitorPart.join('\n')}
-${this.getEmailSignature()}`
-      this._xo.sendEmail({
-        to: this._configuration.toEmails,
-        subject: `[Xen Orchestra] − Performance Alert TEST`,
-        markdown: message,
-      })
-    }
+${vmMonitorPart.join('\n')}
+${hostMonitorPart.join('\n')}`)
   }
 
   load () {
@@ -215,9 +300,9 @@ ${this.getEmailSignature()}`
     this._job.stop()
   }
 
-  parseDefinition (definition) {
-    const alarmID = `VM|${definition.variable_name}|${definition.alarm_trigger_level}`
-    const parseData = (result, vm) => {
+  _parseDefinition (definition) {
+    const alarmID = `${definition.object_type}|${definition.variable_name}|${definition.alarm_trigger_level}`
+    const parseData = (result, uuid) => {
       const parsedLegend = result.meta.legend.map((l, index) => {
         const [operation, type, uuid, name] = l.split(':')
         const parsedName = name.split('_')
@@ -239,103 +324,122 @@ ${this.getEmailSignature()}`
         const relatedNode = getNode(root, l.relatedEntity)
         relatedNode[l.name] = l
       })
-      const vmFunction = VM_FUNCTIONS[definition.variable_name]
-      const parser = vmFunction.createParser(parsedLegend.filter(l => l.uuid === vm.uuid), definition.alarm_trigger_level)
+      const vmFunction = TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name]
+      const parser = vmFunction.createParser(parsedLegend.filter(l => l.uuid === uuid), definition.alarm_trigger_level)
       result.data.forEach(d => parser.parseRow(d))
       return parser
     }
     return {
       ...definition,
       alarmID,
-      vmFunction: VM_FUNCTIONS[definition.variable_name],
-      vmsToCheck: () => definition.uuids.map(uuid => this._xo.getXapi(uuid).getObject(uuid)),
+      vmFunction: TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name],
+      objectsToCheck: () => definition.uuids.map(uuid => this._xo.getXapi(uuid).getObject(uuid)),
       observationPeriod: definition.alarm_trigger_period !== undefined ? definition.alarm_trigger_period : 60,
-      displayData: (result, vm) => parseData(result, vm).getDisplayableValue().toFixed(1) + VM_FUNCTIONS[definition.variable_name].unit,
-      checkData: (result, vm) => {
-        const parser = parseData(result, vm)
+      displayData: (result, uuid) => parseData(result, uuid).getDisplayableValue().toFixed(1) + TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name].unit,
+      checkData: (result, uuid) => {
+        const parser = parseData(result, uuid)
         return parser.shouldAlarm()
       },
     }
   }
 
+  _getHostMonitors () {
+    return map(this._configuration.hostMonitors, def => this._parseDefinition({...def, object_type: 'host'}))
+  }
+
+  _getVmMonitors () {
+    return map(this._configuration.vmMonitors, def => this._parseDefinition({...def, object_type: 'vm'}))
+  }
+
   async _checkMonitors () {
-    const logger = await this._xo.getLogger('perf')
-    const alarmDefinitions = this._configuration.monitors.map(def => ({...def, object_type: 'vm'}))
-
-    const monitors = alarmDefinitions.map(this.parseDefinition.bind(this))
-
+    const hostDisplay = {
+      createObjectListItem: (monitoredObject, monitor, finalValue) =>
+        `  * Host [${monitoredObject.name_label}](${this._generateHostUrl(monitoredObject)}) ${monitor.variable_name}: ${finalValue}`,
+      createMonitorTitle: (monitor) =>
+        `Host ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}`,
+      objectName: 'host',
+    }
+    const vmDisplay = {
+      createObjectListItem: (monitoredObject, monitor, finalValue) =>
+        `  * VM [${monitoredObject.name_label}](${this._generateVmUrl(monitoredObject)}) ${monitor.variable_name}: ${finalValue}`,
+      createMonitorTitle: (monitor) =>
+        `VM ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}`,
+      objectName: 'VM',
+    }
+    const displayPerType = {
+      host: hostDisplay,
+      vm: vmDisplay,
+    }
+    const monitors = this._getHostMonitors().concat(this._getVmMonitors())
     for (const monitor of monitors) {
-      const vms = monitor.vmsToCheck()
-      for (const vm of vms) {
-        const rrd = await this.getRRDForVm(vm, monitor.observationPeriod)
+      const display = displayPerType[monitor.object_type]
+      const objects = monitor.objectsToCheck()
+      for (const monitoredObject of objects) {
+        const rrd = await this.getRRD(monitoredObject, monitor.observationPeriod, monitor.object_type === 'host')
         const couldFindRRD = rrd !== null
-        raiseOrLowerAlarm(`${monitor.alarmID}|${vm.uuid}|RRD`, !couldFindRRD, () => {
-          this._xo.sendEmail({
-            to: this._configuration.toEmails,
-            subject: `[Xen Orchestra] − Performance Alert Secondary Issue`,
-            markdown: `
-## There was an issue when trying to check ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}
-  * VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **Can't read performance counters, is the VM up?**
-
-${this.getEmailSignature()} `,
-          })
+        raiseOrLowerAlarm(`${monitor.alarmID}|${monitoredObject.uuid}|RRD`, !couldFindRRD, () => {
+          this._sendAlertEmail('Secondary Issue', `
+## There was an issue when trying to check ${display.createMonitorTitle(monitor)}
+${display.createObjectListItem(monitoredObject, monitor, `**Can't read performance counters, is the ${display.objectName} up?**`)}`)
         }, () => {})
         if (!couldFindRRD) {
           continue
         }
-        const predicate = monitor.checkData(rrd, vm)
+        const predicate = monitor.checkData(rrd, monitoredObject.uuid)
         const raiseAlarm = (alarmID) => {
-          logger.error(`Performance: VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **${monitor.displayData(rrd, vm)}**`)
-          if (this._configuration.toEmails !== undefined && this._xo.sendEmail !== undefined) {
-            this._xo.sendEmail({
-              to: this._configuration.toEmails,
-              subject: `[Xen Orchestra] − Performance Alert`,
-              markdown: `
-## ALERT ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}
-  * VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **${monitor.displayData(rrd, vm)}**
+          this._sendAlertEmail('', `
+## ALERT ${display.createMonitorTitle(monitor)}
+${display.createObjectListItem(monitoredObject, monitor, `**${monitor.displayData(rrd, monitoredObject.uuid)}**`)}
 ### Description
-  ${monitor.vmFunction.description}
-${this.getEmailSignature()}`,
-            })
-          }
+  ${monitor.vmFunction.description}`)
         }
         const lowerAlarm = (alarmID) => {
           console.log('lowering Alarm', alarmID)
-          this._xo.sendEmail({
-            to: this._configuration.toEmails,
-            subject: `[Xen Orchestra] − Performance Alert END`,
-            markdown: `
-## END OF ALERT ${monitor.variable_name} ${monitor.vmFunction.comparator} ${monitor.alarm_trigger_level}${monitor.vmFunction.unit}
-  * VM [${vm.name_label}](${this.generateVmUrl(vm)}) ${monitor.variable_name}: **${monitor.displayData(rrd, vm)}**
+          this._sendAlertEmail('END OF ALERT', `
+## END OF ALERT ${display.createMonitorTitle(monitor)}
+${display.createObjectListItem(monitoredObject, monitor, `**${monitor.displayData(rrd, monitoredObject.uuid)}**`)}
 ### Description
-  ${monitor.vmFunction.description}
-${this.getEmailSignature()}
-              `,
-          })
+  ${monitor.vmFunction.description}`)
         }
-        raiseOrLowerAlarm(`${monitor.alarmID}|${vm.uuid}`, predicate, raiseAlarm, lowerAlarm)
+        raiseOrLowerAlarm(`${monitor.alarmID}|${monitoredObject.uuid}`, predicate, raiseAlarm, lowerAlarm)
       }
     }
   }
 
-  async getRRDForVm (vm, secondsAgo) {
-    const host = vm.$resident_on
+  _sendAlertEmail (subjectSuffix, markdownBody) {
+    if (this._configuration.toEmails !== undefined && this._xo.sendEmail !== undefined) {
+      this._xo.sendEmail({
+        to: this._configuration.toEmails,
+        subject: `[Xen Orchestra] − Performance Alert ${subjectSuffix}`,
+        markdown: markdownBody + this._getEmailSignature(),
+      })
+    } else {
+      throw new Error('The email alert system has a configuration issue.')
+    }
+  }
+
+  // forHost === false means "for VM"
+  async getRRD (xoObject, secondsAgo, forHost) {
+    const host = forHost ? xoObject : xoObject.$resident_on
     if (host == null) {
       return null
     }
     // we get the xapi per host, because the alarms can check VMs in various pools
     const xapi = this._xo.getXapi(host.uuid)
     const serverTimestamp = await getServerTimestamp(xapi, host)
-    return JSON5.parse(await (await xapi.getResource('/rrd_updates', {
+    const payload = {
       host: host,
       query: {
         cf: 'AVERAGE',
-        host: 'true',
+        host: forHost,
         json: 'true',
-        vm_uuid: vm.uuid,
         start: serverTimestamp - secondsAgo,
       },
-    })).readAll())
+    }
+    if (!forHost) {
+      payload['vm_uuid'] = xoObject.uuid
+    }
+    return JSON5.parse(await (await xapi.getResource('/rrd_updates', payload)).readAll())
   }
 }
 
