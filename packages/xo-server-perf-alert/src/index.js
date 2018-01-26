@@ -373,6 +373,10 @@ ${entry.listItem}`)
           continue
         }
         const raiseAlarm = (alarmID) => {
+          // sample message:
+          // value: 1.242087 config: <variable> <name value="mem_usage"/> </variable>
+          this._xo.getXapi(entry.object.uuid).call('message.create', 'ALARM', 3, entry.object.$type, entry.object.uuid,
+            `value: ${entry.value.toFixed(1)} config: <variable> <name value="${monitor.variable_name}"/> </variable>`)
           this._sendAlertEmail('', `
 ## ALERT ${monitor.title}
 ${entry.listItem}
