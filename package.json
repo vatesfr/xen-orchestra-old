@@ -137,6 +137,7 @@
     "husky": "^0.14.3",
     "index-modules": "^0.3.0",
     "jest": "^22.0.3",
+    "memwatch-next": "^0.3.0",
     "rimraf": "^2.6.2"
   },
   "scripts": {

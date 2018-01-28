@@ -28,4 +28,20 @@ process.on('unhandledRejection', function (reason) {
   }
 })(require('events').EventEmitter)
 
+try {
+  const memwatch = require('memwatch-next')
+  let hd
+  memwatch.on('stats', () => {
+    hd = new memwatch.HeapDiff()
+  })
+  memwatch.on('leak', info => {
+    console.log(info)
+    console.log(hd.end())
+  })
+} catch (error) {
+  if (error == null || error.code !== 'MODULE_NOT_FOUND') {
+    throw error
+  }
+}
+
 require('exec-promise')(require('../'))
