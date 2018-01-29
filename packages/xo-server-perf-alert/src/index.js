@@ -263,12 +263,12 @@ class PerfAlertXoPlugin {
 
   async test () {
     const hostMonitorPart2 = await Promise.all(map(this._getMonitors(), async m => {
-      const hostList = (await m.snapshot()).map(entry => entry.tableItem)
+      const tableBody = (await m.snapshot()).map(entry => entry.tableItem)
       return `
 ## Monitor for ${m.title}
 
 ${m.tableHeader}
-${hostList.join('\\n')}`
+${tableBody.join('')}`
     }))
 
     this._sendAlertEmail('TEST', `
@@ -332,8 +332,8 @@ ${hostMonitorPart2.join('\n')}`)
             object: monitoredObject,
             couldFindRRD,
             objectLink: objectLink,
-            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: **Can't read performance counters**`,
-            tableItem: `${objectLink} | - | **Can't read performance counters**`,
+            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: **Can't read performance counters**\n`,
+            tableItem: `${objectLink} | - | **Can't read performance counters**\n`,
           }
           if (!couldFindRRD) {
             return result
@@ -346,8 +346,8 @@ ${hostMonitorPart2.join('\n')}`)
             value: data.getDisplayableValue(),
             shouldAlarm: shouldAlarm,
             textValue: textValue,
-            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: ${textValue}`,
-            tableItem: `${objectLink} | ${textValue} | ${shouldAlarm ? '**Alert Ongoing**' : 'no alert'}`,
+            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: ${textValue}\n`,
+            tableItem: `${objectLink} | ${textValue} | ${shouldAlarm ? '**Alert Ongoing**' : 'no alert'}\n`,
           }
         }))
       },
