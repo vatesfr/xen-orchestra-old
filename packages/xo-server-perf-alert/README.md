@@ -1,7 +1,19 @@
-# xo-server-perf-alert
+# xo-server-perf-alert [![Build Status](https://travis-ci.org/vatesfr/xen-orchestra.png?branch=master)](https://travis-ci.org/vatesfr/xen-orchestra)
 
-Alert plugin for Xen Orchestra
+> Alert plugin for Xen Orchestra
 
+## Install
+
+Installation of the [npm package](https://npmjs.org/package/xo-server-perf-alert):
+
+```
+> npm install --global xo-server-perf-alert
+```
+
+## Usage
+
+Like all xo-server plugins, it can be configured directly via
+the web interface, see [the plugin documentation](https://xen-orchestra.com/docs/plugins.html).
 
 ## Contributions
 
