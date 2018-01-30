@@ -1,27 +1,26 @@
 import JSON5 from 'json5'
 import { CronJob } from 'cron'
+import { forOwn, map, mean } from 'lodash'
 import { utcParse } from 'd3-time-format'
-import {
-  forOwn,
-  map,
-  mean,
-} from 'lodash'
 
 const VM_FUNCTIONS = {
   cpu_usage: {
-    description: 'Raises an alarm when the average usage of any CPU is higher than the threshold',
+    description:
+      'Raises an alarm when the average usage of any CPU is higher than the threshold',
     unit: '%',
     comparator: '>',
     createParser: (legend, threshold) => {
       const regex = /cpu[0-9]+/
       const filteredLegends = legend.filter(l => l.name.match(regex))
-      const accumulator = Object.assign(...filteredLegends.map(l => ({[l.name]: []})))
+      const accumulator = Object.assign(
+        ...filteredLegends.map(l => ({ [l.name]: [] }))
+      )
       const getDisplayableValue = () => {
         const means = Object.keys(accumulator).map(l => mean(accumulator[l]))
         return Math.max(...means) * 100
       }
       return {
-        parseRow: (data) => {
+        parseRow: data => {
           filteredLegends.forEach(l => {
             accumulator[l.name].push(data.values[l.index])
           })
@@ -32,18 +31,23 @@ const VM_FUNCTIONS = {
     },
   },
   memory_usage: {
-    description: 'Raises an alarm when the used memory % is higher than the threshold',
+    description:
+      'Raises an alarm when the used memory % is higher than the threshold',
     unit: '% used',
     comparator: '>',
     createParser: (legend, threshold) => {
       const memoryBytesLegend = legend.find(l => l.name === 'memory')
-      const memoryKBytesFreeLegend = legend.find(l => l.name === 'memory_internal_free')
+      const memoryKBytesFreeLegend = legend.find(
+        l => l.name === 'memory_internal_free'
+      )
       const usedMemoryRatio = []
       const getDisplayableValue = () => mean(usedMemoryRatio) * 100
       return {
-        parseRow: (data) => {
+        parseRow: data => {
           const memory = data.values[memoryBytesLegend.index]
-          usedMemoryRatio.push((memory - 1024 * data.values[memoryKBytesFreeLegend.index]) / memory)
+          usedMemoryRatio.push(
+            (memory - 1024 * data.values[memoryKBytesFreeLegend.index]) / memory
+          )
         },
         getDisplayableValue,
         shouldAlarm: () => {
@@ -56,19 +60,22 @@ const VM_FUNCTIONS = {
 
 const HOST_FUNCTIONS = {
   cpu_usage: {
-    description: 'Raises an alarm when the average usage of any CPU is higher than the threshold',
+    description:
+      'Raises an alarm when the average usage of any CPU is higher than the threshold',
     unit: '%',
     comparator: '>',
     createParser: (legend, threshold) => {
       const regex = /^cpu[0-9]+$/
       const filteredLegends = legend.filter(l => l.name.match(regex))
-      const accumulator = Object.assign(...filteredLegends.map(l => ({[l.name]: []})))
+      const accumulator = Object.assign(
+        ...filteredLegends.map(l => ({ [l.name]: [] }))
+      )
       const getDisplayableValue = () => {
         const means = Object.keys(accumulator).map(l => mean(accumulator[l]))
         return Math.max(...means) * 100
       }
       return {
-        parseRow: (data) => {
+        parseRow: data => {
           filteredLegends.forEach(l => {
             accumulator[l.name].push(data.values[l.index])
           })
@@ -79,18 +86,23 @@ const HOST_FUNCTIONS = {
     },
   },
   memory_usage: {
-    description: 'Raises an alarm when the used memory % is higher than the threshold',
+    description:
+      'Raises an alarm when the used memory % is higher than the threshold',
     unit: '% used',
     comparator: '>',
     createParser: (legend, threshold) => {
       const memoryKBytesLegend = legend.find(l => l.name === 'memory_total_kib')
-      const memoryKBytesFreeLegend = legend.find(l => l.name === 'memory_free_kib')
+      const memoryKBytesFreeLegend = legend.find(
+        l => l.name === 'memory_free_kib'
+      )
       const usedMemoryRatio = []
       const getDisplayableValue = () => mean(usedMemoryRatio) * 100
       return {
-        parseRow: (data) => {
+        parseRow: data => {
           const memory = data.values[memoryKBytesLegend.index]
-          usedMemoryRatio.push((memory - data.values[memoryKBytesFreeLegend.index]) / memory)
+          usedMemoryRatio.push(
+            (memory - data.values[memoryKBytesFreeLegend.index]) / memory
+          )
         },
         getDisplayableValue,
         shouldAlarm: () => {
@@ -115,13 +127,15 @@ export const configurationSchema = {
     serverUrl: {
       type: 'string',
       title: 'Xen Orchestra URL',
-      description: 'URL used in alert messages to quickly get to the VMs (ex: http://192.168.100.244:9000/ )',
+      description:
+        'URL used in alert messages to quickly get to the VMs (ex: http://192.168.100.244:9000/ )',
     },
     hostMonitors: {
       type: 'array',
       title: 'Host Monitors',
-      description: 'Alarms checking hosts on all pools. The selected performance counter is sampled regularly and averaged. ' +
-      'The Average is compared to the threshold and an alarm is raised upon crossing',
+      description:
+        'Alarms checking hosts on all pools. The selected performance counter is sampled regularly and averaged. ' +
+        'The Average is compared to the threshold and an alarm is raised upon crossing',
       items: {
         type: 'object',
         properties: {
@@ -136,21 +150,32 @@ export const configurationSchema = {
           },
           variable_name: {
             title: 'Alarm Type',
-            description: '<dl>' + Object.keys(HOST_FUNCTIONS).map(k =>
-              `<dt>${k} (${HOST_FUNCTIONS[k].unit}): </dt><dd>${HOST_FUNCTIONS[k].description}</dd>`).join(' ') + '</dl>',
+            description:
+              '<dl>' +
+              Object.keys(HOST_FUNCTIONS)
+                .map(
+                  k =>
+                    `<dt>${k} (${HOST_FUNCTIONS[k].unit}): </dt><dd>${
+                      HOST_FUNCTIONS[k].description
+                    }</dd>`
+                )
+                .join(' ') +
+              '</dl>',
             type: 'string',
             default: 'cpu_usage',
             enum: Object.keys(HOST_FUNCTIONS),
           },
           alarm_trigger_level: {
             title: 'Threshold',
-            description: 'The direction of the crossing is given by the Alarm type',
+            description:
+              'The direction of the crossing is given by the Alarm type',
             type: 'number',
             default: 40,
           },
           alarm_trigger_period: {
             title: 'Average Length (s)',
-            description: 'The points are averaged this number of seconds then the average is compared with the threshold',
+            description:
+              'The points are averaged this number of seconds then the average is compared with the threshold',
             type: 'number',
             default: 60,
             enum: [60, 600],
@@ -161,8 +186,9 @@ export const configurationSchema = {
     vmMonitors: {
       type: 'array',
       title: 'VM Monitors',
-      description: 'Alarms checking all VMs on all pools. The selected performance counter is sampled regularly and averaged. ' +
-      'The Average is compared to the threshold and an alarm is raised upon crossing',
+      description:
+        'Alarms checking all VMs on all pools. The selected performance counter is sampled regularly and averaged. ' +
+        'The Average is compared to the threshold and an alarm is raised upon crossing',
       items: {
         type: 'object',
         properties: {
@@ -177,21 +203,32 @@ export const configurationSchema = {
           },
           variable_name: {
             title: 'Alarm Type',
-            description: '<dl>' + Object.keys(VM_FUNCTIONS).map(k =>
-              `<dt>${k} (${VM_FUNCTIONS[k].unit}): </dt><dd>${VM_FUNCTIONS[k].description}</dd>`).join(' ') + '</dl>',
+            description:
+              '<dl>' +
+              Object.keys(VM_FUNCTIONS)
+                .map(
+                  k =>
+                    `<dt>${k} (${VM_FUNCTIONS[k].unit}): </dt><dd>${
+                      VM_FUNCTIONS[k].description
+                    }</dd>`
+                )
+                .join(' ') +
+              '</dl>',
             type: 'string',
             default: 'cpu_usage',
             enum: Object.keys(VM_FUNCTIONS),
           },
           alarm_trigger_level: {
             title: 'Threshold',
-            description: 'The direction of the crossing is given by the Alarm type',
+            description:
+              'The direction of the crossing is given by the Alarm type',
             type: 'number',
             default: 40,
           },
           alarm_trigger_period: {
             title: 'Average Length (s)',
-            description: 'The points are averaged this number of seconds then the average is compared with the threshold',
+            description:
+              'The points are averaged this number of seconds then the average is compared with the threshold',
             type: 'number',
             default: 60,
             enum: [60, 600],
@@ -213,7 +250,10 @@ export const configurationSchema = {
   },
 }
 
-const clearCurrentAlarms = () => forOwn(currentAlarms, (v, k) => { delete currentAlarms[k] })
+const clearCurrentAlarms = () =>
+  forOwn(currentAlarms, (v, k) => {
+    delete currentAlarms[k]
+  })
 
 const raiseOrLowerAlarm = (alarmID, result, raiseCallback, lowerCallback) => {
   const current = currentAlarms[alarmID]
@@ -235,13 +275,19 @@ const raiseOrLowerAlarm = (alarmID, result, raiseCallback, lowerCallback) => {
 
 async function getServerTimestamp (xapi, host) {
   const serverLocalTime = await xapi.call('host.get_servertime', host.$ref)
-  return Math.floor((utcParse('%Y%m%dT%H:%M:%SZ')(serverLocalTime)).getTime() / 1000)
+  return Math.floor(
+    utcParse('%Y%m%dT%H:%M:%SZ')(serverLocalTime).getTime() / 1000
+  )
 }
 
 class PerfAlertXoPlugin {
   constructor (xo) {
     this._xo = xo
-    this._job = new CronJob({cronTime: '* * * * *', start: false, onTick: this._checkMonitors.bind(this)})
+    this._job = new CronJob({
+      cronTime: '* * * * *',
+      start: false,
+      onTick: this._checkMonitors.bind(this),
+    })
   }
 
   async configure (configuration) {
@@ -258,23 +304,30 @@ class PerfAlertXoPlugin {
   }
 
   _getEmailSignature () {
-    return `\n\n\nSent from Xen Orchestra [perf-alert plugin](${this._configuration.serverUrl}#/settings/plugins)\n`
+    return `\n\n\nSent from Xen Orchestra [perf-alert plugin](${
+      this._configuration.serverUrl
+    }#/settings/plugins)\n`
   }
 
   async test () {
-    const hostMonitorPart2 = await Promise.all(map(this._getMonitors(), async m => {
-      const tableBody = (await m.snapshot()).map(entry => entry.tableItem)
-      return `
+    const hostMonitorPart2 = await Promise.all(
+      map(this._getMonitors(), async m => {
+        const tableBody = (await m.snapshot()).map(entry => entry.tableItem)
+        return `
 ## Monitor for ${m.title}
 
 ${m.tableHeader}
 ${tableBody.join('')}`
-    }))
+      })
+    )
 
-    this._sendAlertEmail('TEST', `
+    this._sendAlertEmail(
+      'TEST',
+      `
 # Performance Alert Test
 Your alarms and their current status:
-${hostMonitorPart2.join('\n')}`)
+${hostMonitorPart2.join('\n')}`
+    )
   }
 
   load () {
@@ -286,15 +339,21 @@ ${hostMonitorPart2.join('\n')}`)
   }
 
   _parseDefinition (definition) {
-    const alarmID = `${definition.object_type}|${definition.variable_name}|${definition.alarm_trigger_level}`
-    const typeFunction = TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name]
+    const alarmID = `${definition.object_type}|${definition.variable_name}|${
+      definition.alarm_trigger_level
+    }`
+    const typeFunction =
+      TYPE_FUNCTION_MAP[definition.object_type][definition.variable_name]
     const parseData = (result, uuid) => {
       const parsedLegend = result.meta.legend.map((l, index) => {
         const [operation, type, uuid, name] = l.split(':')
         const parsedName = name.split('_')
         const lastComponent = parsedName[parsedName.length - 1]
-        const relatedEntity = parsedName.length > 1 && lastComponent.match(/^[0-9a-f]{8}$/) ? lastComponent : null
-        return {operation, type, uuid, name, relatedEntity, parsedName, index}
+        const relatedEntity =
+          parsedName.length > 1 && lastComponent.match(/^[0-9a-f]{8}$/)
+            ? lastComponent
+            : null
+        return { operation, type, uuid, name, relatedEntity, parsedName, index }
       })
       const legendTree = {}
       const getNode = (element, name, defaultValue = {}) => {
@@ -310,53 +369,82 @@ ${hostMonitorPart2.join('\n')}`)
         const relatedNode = getNode(root, l.relatedEntity)
         relatedNode[l.name] = l
       })
-      const parser = typeFunction.createParser(parsedLegend.filter(l => l.uuid === uuid), definition.alarm_trigger_level)
+      const parser = typeFunction.createParser(
+        parsedLegend.filter(l => l.uuid === uuid),
+        definition.alarm_trigger_level
+      )
       result.data.forEach(d => parser.parseRow(d))
       return parser
     }
-    const objectsToCheck = () => definition.uuids.map(uuid => this._xo.getXapi(uuid).getObject(uuid))
-    const observationPeriod = definition.alarm_trigger_period !== undefined ? definition.alarm_trigger_period : 60
+    const objectsToCheck = () =>
+      definition.uuids.map(uuid => this._xo.getXapi(uuid).getObject(uuid))
+    const observationPeriod =
+      definition.alarm_trigger_period !== undefined
+        ? definition.alarm_trigger_period
+        : 60
     const typeText = definition.object_type === 'host' ? 'Host' : 'VM'
     return {
       ...definition,
       alarmID,
       vmFunction: typeFunction,
-      title: `${typeText} ${definition.variable_name} ${typeFunction.comparator} ${definition.alarm_trigger_level}${typeFunction.unit}`,
+      title: `${typeText} ${definition.variable_name} ${
+        typeFunction.comparator
+      } ${definition.alarm_trigger_level}${typeFunction.unit}`,
       tableHeader: `${typeText}  | Value | Alert\n--- | -----:| ---:`,
       snapshot: async () => {
-        return Promise.all(map(objectsToCheck(), async monitoredObject => {
-          const objectLink = `[${monitoredObject.name_label}](${this._generateUrl(definition.object_type, monitoredObject)})`
-          const rrd = await this.getRRD(monitoredObject, observationPeriod, definition.object_type === 'host')
-          const couldFindRRD = rrd !== null
-          const result = {
-            object: monitoredObject,
-            couldFindRRD,
-            objectLink: objectLink,
-            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: **Can't read performance counters**\n`,
-            tableItem: `${objectLink} | - | **Can't read performance counters**\n`,
-          }
-          if (!couldFindRRD) {
-            return result
-          }
-          const data = parseData(rrd, monitoredObject.uuid)
-          const textValue = data.getDisplayableValue().toFixed(1) + typeFunction.unit
-          const shouldAlarm = data.shouldAlarm()
-          return {
-            ...result,
-            value: data.getDisplayableValue(),
-            shouldAlarm: shouldAlarm,
-            textValue: textValue,
-            listItem: `  * ${typeText} ${objectLink} ${definition.variable_name}: ${textValue}\n`,
-            tableItem: `${objectLink} | ${textValue} | ${shouldAlarm ? '**Alert Ongoing**' : 'no alert'}\n`,
-          }
-        }))
+        return Promise.all(
+          map(objectsToCheck(), async monitoredObject => {
+            const objectLink = `[${
+              monitoredObject.name_label
+            }](${this._generateUrl(definition.object_type, monitoredObject)})`
+            const rrd = await this.getRRD(
+              monitoredObject,
+              observationPeriod,
+              definition.object_type === 'host'
+            )
+            const couldFindRRD = rrd !== null
+            const result = {
+              object: monitoredObject,
+              couldFindRRD,
+              objectLink: objectLink,
+              listItem: `  * ${typeText} ${objectLink} ${
+                definition.variable_name
+              }: **Can't read performance counters**\n`,
+              tableItem: `${objectLink} | - | **Can't read performance counters**\n`,
+            }
+            if (!couldFindRRD) {
+              return result
+            }
+            const data = parseData(rrd, monitoredObject.uuid)
+            const textValue =
+              data.getDisplayableValue().toFixed(1) + typeFunction.unit
+            const shouldAlarm = data.shouldAlarm()
+            return {
+              ...result,
+              value: data.getDisplayableValue(),
+              shouldAlarm: shouldAlarm,
+              textValue: textValue,
+              listItem: `  * ${typeText} ${objectLink} ${
+                definition.variable_name
+              }: ${textValue}\n`,
+              tableItem: `${objectLink} | ${textValue} | ${
+                shouldAlarm ? '**Alert Ongoing**' : 'no alert'
+              }\n`,
+            }
+          })
+        )
       },
     }
   }
 
   _getMonitors () {
-    return map(this._configuration.hostMonitors, def => this._parseDefinition({...def, object_type: 'host'})).concat(
-      map(this._configuration.vmMonitors, def => this._parseDefinition({...def, object_type: 'vm'})))
+    return map(this._configuration.hostMonitors, def =>
+      this._parseDefinition({ ...def, object_type: 'host' })
+    ).concat(
+      map(this._configuration.vmMonitors, def =>
+        this._parseDefinition({ ...def, object_type: 'vm' })
+      )
+    )
   }
 
   async _checkMonitors () {
@@ -364,40 +452,74 @@ ${hostMonitorPart2.join('\n')}`)
     for (const monitor of monitors) {
       const snapshot = await monitor.snapshot()
       for (const entry of snapshot) {
-        raiseOrLowerAlarm(`${monitor.alarmID}|${entry.object.uuid}|RRD`, !entry.couldFindRRD, () => {
-          this._sendAlertEmail('Secondary Issue', `
+        raiseOrLowerAlarm(
+          `${monitor.alarmID}|${entry.object.uuid}|RRD`,
+          !entry.couldFindRRD,
+          () => {
+            this._sendAlertEmail(
+              'Secondary Issue',
+              `
 ## There was an issue when trying to check ${monitor.title}
-${entry.listItem}`)
-        }, () => {})
+${entry.listItem}`
+            )
+          },
+          () => {}
+        )
         if (!entry.couldFindRRD) {
           continue
         }
-        const raiseAlarm = (alarmID) => {
+        const raiseAlarm = alarmID => {
           // sample XenCenter message:
           // value: 1.242087 config: <variable> <name value="mem_usage"/> </variable>
-          this._xo.getXapi(entry.object.uuid).call('message.create', 'ALARM', 3, entry.object.$type, entry.object.uuid,
-            `value: ${entry.value.toFixed(1)} config: <variable> <name value="${monitor.variable_name}"/> </variable>`)
-          this._sendAlertEmail('', `
+          this._xo
+            .getXapi(entry.object.uuid)
+            .call(
+              'message.create',
+              'ALARM',
+              3,
+              entry.object.$type,
+              entry.object.uuid,
+              `value: ${entry.value.toFixed(
+                1
+              )} config: <variable> <name value="${
+                monitor.variable_name
+              }"/> </variable>`
+            )
+          this._sendAlertEmail(
+            '',
+            `
 ## ALERT ${monitor.title}
 ${entry.listItem}
 ### Description
-  ${monitor.vmFunction.description}`)
+  ${monitor.vmFunction.description}`
+          )
         }
-        const lowerAlarm = (alarmID) => {
+        const lowerAlarm = alarmID => {
           console.log('lowering Alarm', alarmID)
-          this._sendAlertEmail('END OF ALERT', `
+          this._sendAlertEmail(
+            'END OF ALERT',
+            `
 ## END OF ALERT ${monitor.title}
 ${entry.listItem}
 ### Description
-  ${monitor.vmFunction.description}`)
+  ${monitor.vmFunction.description}`
+          )
         }
-        raiseOrLowerAlarm(`${monitor.alarmID}|${entry.object.uuid}`, entry.shouldAlarm, raiseAlarm, lowerAlarm)
+        raiseOrLowerAlarm(
+          `${monitor.alarmID}|${entry.object.uuid}`,
+          entry.shouldAlarm,
+          raiseAlarm,
+          lowerAlarm
+        )
       }
     }
   }
 
   _sendAlertEmail (subjectSuffix, markdownBody) {
-    if (this._configuration.toEmails !== undefined && this._xo.sendEmail !== undefined) {
+    if (
+      this._configuration.toEmails !== undefined &&
+      this._xo.sendEmail !== undefined
+    ) {
       this._xo.sendEmail({
         to: this._configuration.toEmails,
         subject: `[Xen Orchestra] − Performance Alert ${subjectSuffix}`,
@@ -429,11 +551,13 @@ ${entry.listItem}
     if (!forHost) {
       payload['vm_uuid'] = xoObject.uuid
     }
-    return JSON5.parse(await (await xapi.getResource('/rrd_updates', payload)).readAll())
+    return JSON5.parse(
+      await (await xapi.getResource('/rrd_updates', payload)).readAll()
+    )
   }
 }
 
-exports.default = function ({xo}) {
+exports.default = function ({ xo }) {
   return new PerfAlertXoPlugin(xo)
 }
 
