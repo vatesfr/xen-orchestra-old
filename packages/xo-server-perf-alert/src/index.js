@@ -1,155 +1,155 @@
-import { CronJob } from "cron";
-import { forOwn, map, mean } from "lodash";
-import { utcParse } from "d3-time-format";
+import { CronJob } from 'cron'
+import { forOwn, map, mean } from 'lodash'
+import { utcParse } from 'd3-time-format'
 
 const VM_FUNCTIONS = {
   cpu_usage: {
     description:
-      "Raises an alarm when the average usage of any CPU is higher than the threshold",
-    unit: "%",
-    comparator: ">",
+      'Raises an alarm when the average usage of any CPU is higher than the threshold',
+    unit: '%',
+    comparator: '>',
     createParser: (legend, threshold) => {
-      const regex = /cpu[0-9]+/;
-      const filteredLegends = legend.filter(l => l.name.match(regex));
+      const regex = /cpu[0-9]+/
+      const filteredLegends = legend.filter(l => l.name.match(regex))
       const accumulator = Object.assign(
         ...filteredLegends.map(l => ({ [l.name]: [] }))
-      );
+      )
       const getDisplayableValue = () => {
-        const means = Object.keys(accumulator).map(l => mean(accumulator[l]));
-        return Math.max(...means) * 100;
-      };
+        const means = Object.keys(accumulator).map(l => mean(accumulator[l]))
+        return Math.max(...means) * 100
+      }
       return {
         parseRow: data => {
           filteredLegends.forEach(l => {
-            accumulator[l.name].push(data.values[l.index]);
-          });
+            accumulator[l.name].push(data.values[l.index])
+          })
         },
         getDisplayableValue,
-        shouldAlarm: () => getDisplayableValue() > threshold
-      };
-    }
+        shouldAlarm: () => getDisplayableValue() > threshold,
+      }
+    },
   },
   memory_usage: {
     description:
-      "Raises an alarm when the used memory % is higher than the threshold",
-    unit: "% used",
-    comparator: ">",
+      'Raises an alarm when the used memory % is higher than the threshold',
+    unit: '% used',
+    comparator: '>',
     createParser: (legend, threshold) => {
-      const memoryBytesLegend = legend.find(l => l.name === "memory");
+      const memoryBytesLegend = legend.find(l => l.name === 'memory')
       const memoryKBytesFreeLegend = legend.find(
-        l => l.name === "memory_internal_free"
-      );
-      const usedMemoryRatio = [];
-      const getDisplayableValue = () => mean(usedMemoryRatio) * 100;
+        l => l.name === 'memory_internal_free'
+      )
+      const usedMemoryRatio = []
+      const getDisplayableValue = () => mean(usedMemoryRatio) * 100
       return {
         parseRow: data => {
-          const memory = data.values[memoryBytesLegend.index];
+          const memory = data.values[memoryBytesLegend.index]
           usedMemoryRatio.push(
             (memory - 1024 * data.values[memoryKBytesFreeLegend.index]) / memory
-          );
+          )
         },
         getDisplayableValue,
         shouldAlarm: () => {
-          return getDisplayableValue() > threshold;
-        }
-      };
-    }
-  }
-};
+          return getDisplayableValue() > threshold
+        },
+      }
+    },
+  },
+}
 
 const HOST_FUNCTIONS = {
   cpu_usage: {
     description:
-      "Raises an alarm when the average usage of any CPU is higher than the threshold",
-    unit: "%",
-    comparator: ">",
+      'Raises an alarm when the average usage of any CPU is higher than the threshold',
+    unit: '%',
+    comparator: '>',
     createParser: (legend, threshold) => {
-      const regex = /^cpu[0-9]+$/;
-      const filteredLegends = legend.filter(l => l.name.match(regex));
+      const regex = /^cpu[0-9]+$/
+      const filteredLegends = legend.filter(l => l.name.match(regex))
       const accumulator = Object.assign(
         ...filteredLegends.map(l => ({ [l.name]: [] }))
-      );
+      )
       const getDisplayableValue = () => {
-        const means = Object.keys(accumulator).map(l => mean(accumulator[l]));
-        return Math.max(...means) * 100;
-      };
+        const means = Object.keys(accumulator).map(l => mean(accumulator[l]))
+        return Math.max(...means) * 100
+      }
       return {
         parseRow: data => {
           filteredLegends.forEach(l => {
-            accumulator[l.name].push(data.values[l.index]);
-          });
+            accumulator[l.name].push(data.values[l.index])
+          })
         },
         getDisplayableValue,
-        shouldAlarm: () => getDisplayableValue() > threshold
-      };
-    }
+        shouldAlarm: () => getDisplayableValue() > threshold,
+      }
+    },
   },
   memory_usage: {
     description:
-      "Raises an alarm when the used memory % is higher than the threshold",
-    unit: "% used",
-    comparator: ">",
+      'Raises an alarm when the used memory % is higher than the threshold',
+    unit: '% used',
+    comparator: '>',
     createParser: (legend, threshold) => {
       const memoryKBytesLegend = legend.find(
-        l => l.name === "memory_total_kib"
-      );
+        l => l.name === 'memory_total_kib'
+      )
       const memoryKBytesFreeLegend = legend.find(
-        l => l.name === "memory_free_kib"
-      );
-      const usedMemoryRatio = [];
-      const getDisplayableValue = () => mean(usedMemoryRatio) * 100;
+        l => l.name === 'memory_free_kib'
+      )
+      const usedMemoryRatio = []
+      const getDisplayableValue = () => mean(usedMemoryRatio) * 100
       return {
         parseRow: data => {
-          const memory = data.values[memoryKBytesLegend.index];
+          const memory = data.values[memoryKBytesLegend.index]
           usedMemoryRatio.push(
             (memory - data.values[memoryKBytesFreeLegend.index]) / memory
-          );
+          )
         },
         getDisplayableValue,
         shouldAlarm: () => {
-          return getDisplayableValue() > threshold;
-        }
-      };
-    }
-  }
-};
+          return getDisplayableValue() > threshold
+        },
+      }
+    },
+  },
+}
 
 const TYPE_FUNCTION_MAP = {
   vm: VM_FUNCTIONS,
-  host: HOST_FUNCTIONS
-};
+  host: HOST_FUNCTIONS,
+}
 
 // list of currently ringing alarms, to avoid double notification
-const currentAlarms = {};
+const currentAlarms = {}
 
 export const configurationSchema = {
-  type: "object",
+  type: 'object',
   properties: {
     baseUrl: {
-      type: "string",
-      title: "Xen Orchestra URL",
+      type: 'string',
+      title: 'Xen Orchestra URL',
       description:
-        "URL used in alert messages to quickly get to the VMs (ex: https://xoa.company.tld/ )"
+        'URL used in alert messages to quickly get to the VMs (ex: https://xoa.company.tld/ )',
     },
     hostMonitors: {
-      type: "array",
-      title: "Host Monitors",
+      type: 'array',
+      title: 'Host Monitors',
       description:
-        "Alarms checking hosts on all pools. The selected performance counter is sampled regularly and averaged. " +
-        "The Average is compared to the threshold and an alarm is raised upon crossing",
+        'Alarms checking hosts on all pools. The selected performance counter is sampled regularly and averaged. ' +
+        'The Average is compared to the threshold and an alarm is raised upon crossing',
       items: {
-        type: "object",
+        type: 'object',
         properties: {
           uuids: {
-            title: "Hosts",
-            type: "array",
+            title: 'Hosts',
+            type: 'array',
             items: {
-              type: "string",
-              $type: "Host"
-            }
+              type: 'string',
+              $type: 'Host',
+            },
           },
           variable_name: {
-            title: "Alarm Type",
+            title: 'Alarm Type',
             description: Object.keys(HOST_FUNCTIONS)
               .map(
                 k =>
@@ -157,48 +157,48 @@ export const configurationSchema = {
                     HOST_FUNCTIONS[k].description
                   }`
               )
-              .join("\n"),
-            type: "string",
+              .join('\n'),
+            type: 'string',
             default: Object.keys(HOST_FUNCTIONS)[0],
-            enum: Object.keys(HOST_FUNCTIONS)
+            enum: Object.keys(HOST_FUNCTIONS),
           },
           alarm_trigger_level: {
-            title: "Threshold",
+            title: 'Threshold',
             description:
-              "The direction of the crossing is given by the Alarm type",
-            type: "number",
-            default: 40
+              'The direction of the crossing is given by the Alarm type',
+            type: 'number',
+            default: 40,
           },
           alarm_trigger_period: {
-            title: "Average Length (s)",
+            title: 'Average Length (s)',
             description:
-              "The points are averaged this number of seconds then the average is compared with the threshold",
-            type: "number",
+              'The points are averaged this number of seconds then the average is compared with the threshold',
+            type: 'number',
             default: 60,
-            enum: [60, 600]
-          }
-        }
-      }
+            enum: [60, 600],
+          },
+        },
+      },
     },
     vmMonitors: {
-      type: "array",
-      title: "VM Monitors",
+      type: 'array',
+      title: 'VM Monitors',
       description:
-        "Alarms checking all VMs on all pools. The selected performance counter is sampled regularly and averaged. " +
-        "The Average is compared to the threshold and an alarm is raised upon crossing",
+        'Alarms checking all VMs on all pools. The selected performance counter is sampled regularly and averaged. ' +
+        'The Average is compared to the threshold and an alarm is raised upon crossing',
       items: {
-        type: "object",
+        type: 'object',
         properties: {
           uuids: {
-            title: "Virtual Machines",
-            type: "array",
+            title: 'Virtual Machines',
+            type: 'array',
             items: {
-              type: "string",
-              $type: "VM"
-            }
+              type: 'string',
+              $type: 'VM',
+            },
           },
           variable_name: {
-            title: "Alarm Type",
+            title: 'Alarm Type',
             description: Object.keys(VM_FUNCTIONS)
               .map(
                 k =>
@@ -206,47 +206,47 @@ export const configurationSchema = {
                     VM_FUNCTIONS[k].description
                   }`
               )
-              .join("\n"),
-            type: "string",
+              .join('\n'),
+            type: 'string',
             default: Object.keys(VM_FUNCTIONS)[0],
-            enum: Object.keys(VM_FUNCTIONS)
+            enum: Object.keys(VM_FUNCTIONS),
           },
           alarm_trigger_level: {
-            title: "Threshold",
+            title: 'Threshold',
             description:
-              "The direction of the crossing is given by the Alarm type",
-            type: "number",
-            default: 40
+              'The direction of the crossing is given by the Alarm type',
+            type: 'number',
+            default: 40,
           },
           alarm_trigger_period: {
-            title: "Average Length (s)",
+            title: 'Average Length (s)',
             description:
-              "The points are averaged this number of seconds then the average is compared with the threshold",
-            type: "number",
+              'The points are averaged this number of seconds then the average is compared with the threshold',
+            type: 'number',
             default: 60,
-            enum: [60, 600]
-          }
+            enum: [60, 600],
+          },
         },
-        required: ["uuids"]
-      }
+        required: ['uuids'],
+      },
     },
     toEmails: {
-      type: "array",
-      title: "Email addresses",
-      description: "Email addresses of the alert recipients",
+      type: 'array',
+      title: 'Email addresses',
+      description: 'Email addresses of the alert recipients',
 
       items: {
-        type: "string"
+        type: 'string',
       },
-      minItems: 1
-    }
-  }
-};
+      minItems: 1,
+    },
+  },
+}
 
 const clearCurrentAlarms = () =>
   forOwn(currentAlarms, (v, k) => {
-    delete currentAlarms[k];
-  });
+    delete currentAlarms[k]
+  })
 
 const raiseOrLowerAlarm = (
   alarmId,
@@ -254,97 +254,97 @@ const raiseOrLowerAlarm = (
   raiseCallback,
   lowerCallback
 ) => {
-  const current = currentAlarms[alarmId];
+  const current = currentAlarms[alarmId]
   if (shouldRaise) {
     if (!current) {
-      currentAlarms[alarmId] = true;
-      raiseCallback(alarmId);
+      currentAlarms[alarmId] = true
+      raiseCallback(alarmId)
     }
   } else {
     if (current) {
       try {
-        lowerCallback(alarmId);
+        lowerCallback(alarmId)
       } finally {
-        delete currentAlarms[alarmId];
+        delete currentAlarms[alarmId]
       }
     }
   }
-};
+}
 
-async function getServerTimestamp(xapi, host) {
-  const serverLocalTime = await xapi.call("host.get_servertime", host.$ref);
+async function getServerTimestamp (xapi, host) {
+  const serverLocalTime = await xapi.call('host.get_servertime', host.$ref)
   return Math.floor(
-    utcParse("%Y%m%dT%H:%M:%SZ")(serverLocalTime).getTime() / 1000
-  );
+    utcParse('%Y%m%dT%H:%M:%SZ')(serverLocalTime).getTime() / 1000
+  )
 }
 
 class PerfAlertXoPlugin {
-  constructor(xo) {
-    this._xo = xo;
+  constructor (xo) {
+    this._xo = xo
     this._job = new CronJob({
-      cronTime: "* * * * *",
+      cronTime: '* * * * *',
       start: false,
-      onTick: this._checkMonitors.bind(this)
-    });
+      onTick: this._checkMonitors.bind(this),
+    })
   }
 
-  async configure(configuration) {
-    this._configuration = configuration;
-    clearCurrentAlarms();
+  async configure (configuration) {
+    this._configuration = configuration
+    clearCurrentAlarms()
   }
 
-  _generateUrl(type, object) {
+  _generateUrl (type, object) {
     const map = {
       vm: () => `${this._configuration.baseUrl}#/vms/${object.uuid}/stats`,
-      host: () => `${this._configuration.baseUrl}#/hosts/${object.uuid}/stats`
-    };
-    return map[type]();
+      host: () => `${this._configuration.baseUrl}#/hosts/${object.uuid}/stats`,
+    }
+    return map[type]()
   }
 
-  async test() {
+  async test () {
     const hostMonitorPart2 = await Promise.all(
       map(this._getMonitors(), async m => {
-        const tableBody = (await m.snapshot()).map(entry => entry.tableItem);
+        const tableBody = (await m.snapshot()).map(entry => entry.tableItem)
         return `
 ## Monitor for ${m.title}
 
 ${m.tableHeader}
-${tableBody.join("")}`;
+${tableBody.join('')}`
       })
-    );
+    )
 
     this._sendAlertEmail(
-      "TEST",
+      'TEST',
       `
 # Performance Alert Test
 Your alarms and their current status:
-${hostMonitorPart2.join("\n")}`
-    );
+${hostMonitorPart2.join('\n')}`
+    )
   }
 
-  load() {
-    this._job.start();
+  load () {
+    this._job.start()
   }
 
-  unload() {
-    this._job.stop();
+  unload () {
+    this._job.stop()
   }
 
-  _parseDefinition(definition) {
+  _parseDefinition (definition) {
     const alarmId = `${definition.objectType}|${definition.variable_name}|${
       definition.alarm_trigger_level
-    }`;
+    }`
     const typeFunction =
-      TYPE_FUNCTION_MAP[definition.objectType][definition.variable_name];
+      TYPE_FUNCTION_MAP[definition.objectType][definition.variable_name]
     const parseData = (result, uuid) => {
       const parsedLegend = result.meta.legend.map((l, index) => {
-        const [operation, type, uuid, name] = l.split(":");
-        const parsedName = name.split("_");
-        const lastComponent = parsedName[parsedName.length - 1];
+        const [operation, type, uuid, name] = l.split(':')
+        const parsedName = name.split('_')
+        const lastComponent = parsedName[parsedName.length - 1]
         const relatedEntity =
           parsedName.length > 1 && lastComponent.match(/^[0-9a-f]{8}$/)
             ? lastComponent
-            : null;
+            : null
         return {
           operation,
           type,
@@ -352,35 +352,35 @@ ${hostMonitorPart2.join("\n")}`
           name,
           relatedEntity,
           parsedName,
-          index
-        };
-      });
-      const legendTree = {};
-      const getNode = (element, name, defaultValue = {}) => {
-        const child = element[name];
-        if (child === undefined) {
-          element[name] = defaultValue;
-          return defaultValue;
+          index,
         }
-        return child;
-      };
+      })
+      const legendTree = {}
+      const getNode = (element, name, defaultValue = {}) => {
+        const child = element[name]
+        if (child === undefined) {
+          element[name] = defaultValue
+          return defaultValue
+        }
+        return child
+      }
       parsedLegend.forEach(l => {
-        const root = getNode(legendTree, l.uuid);
-        const relatedNode = getNode(root, l.relatedEntity);
-        relatedNode[l.name] = l;
-      });
+        const root = getNode(legendTree, l.uuid)
+        const relatedNode = getNode(root, l.relatedEntity)
+        relatedNode[l.name] = l
+      })
       const parser = typeFunction.createParser(
         parsedLegend.filter(l => l.uuid === uuid),
         definition.alarm_trigger_level
-      );
-      result.data.forEach(d => parser.parseRow(d));
-      return parser;
-    };
+      )
+      result.data.forEach(d => parser.parseRow(d))
+      return parser
+    }
     const observationPeriod =
       definition.alarm_trigger_period !== undefined
         ? definition.alarm_trigger_period
-        : 60;
-    const typeText = definition.objectType === "host" ? "Host" : "VM";
+        : 60
+    const typeText = definition.objectType === 'host' ? 'Host' : 'VM'
     return {
       ...definition,
       alarmId,
@@ -393,12 +393,12 @@ ${hostMonitorPart2.join("\n")}`
         return Promise.all(
           map(definition.uuids, async uuid => {
             try {
-              const monitoredObject = this._xo.getXapi(uuid).getObject(uuid);
+              const monitoredObject = this._xo.getXapi(uuid).getObject(uuid)
               const objectLink = `[${
                 monitoredObject.name_label
-              }](${this._generateUrl(definition.objectType, monitoredObject)})`;
-              const rrd = await this.getRrd(monitoredObject, observationPeriod);
-              const couldFindRRD = rrd !== null;
+              }](${this._generateUrl(definition.objectType, monitoredObject)})`
+              const rrd = await this.getRrd(monitoredObject, observationPeriod)
+              const couldFindRRD = rrd !== null
               const result = {
                 object: monitoredObject,
                 couldFindRRD,
@@ -406,15 +406,15 @@ ${hostMonitorPart2.join("\n")}`
                 listItem: `  * ${typeText} ${objectLink} ${
                   definition.variable_name
                 }: **Can't read performance counters**\n`,
-                tableItem: `${objectLink} | - | **Can't read performance counters**\n`
-              };
-              if (!couldFindRRD) {
-                return result;
+                tableItem: `${objectLink} | - | **Can't read performance counters**\n`,
               }
-              const data = parseData(rrd, monitoredObject.uuid);
+              if (!couldFindRRD) {
+                return result
+              }
+              const data = parseData(rrd, monitoredObject.uuid)
               const textValue =
-                data.getDisplayableValue().toFixed(1) + typeFunction.unit;
-              const shouldAlarm = data.shouldAlarm();
+                data.getDisplayableValue().toFixed(1) + typeFunction.unit
+              const shouldAlarm = data.shouldAlarm()
               return {
                 ...result,
                 value: data.getDisplayableValue(),
@@ -424,9 +424,9 @@ ${hostMonitorPart2.join("\n")}`
                   definition.variable_name
                 }: ${textValue}\n`,
                 tableItem: `${objectLink} | ${textValue} | ${
-                  shouldAlarm ? "**Alert Ongoing**" : "no alert"
-                }\n`
-              };
+                  shouldAlarm ? '**Alert Ongoing**' : 'no alert'
+                }\n`,
+              }
             } catch (_) {
               return {
                 uuid,
@@ -436,45 +436,45 @@ ${hostMonitorPart2.join("\n")}`
                 listItem: `  * ${typeText} ${uuid} ${
                   definition.variable_name
                 }: **Can't read performance counters**\n`,
-                tableItem: `object ${uuid} | - | **Can't read performance counters**\n`
-              };
+                tableItem: `object ${uuid} | - | **Can't read performance counters**\n`,
+              }
             }
           })
-        );
-      }
-    };
+        )
+      },
+    }
   }
 
-  _getMonitors() {
+  _getMonitors () {
     return map(this._configuration.hostMonitors, def =>
-      this._parseDefinition({ ...def, objectType: "host" })
+      this._parseDefinition({ ...def, objectType: 'host' })
     ).concat(
       map(this._configuration.vmMonitors, def =>
-        this._parseDefinition({ ...def, objectType: "vm" })
+        this._parseDefinition({ ...def, objectType: 'vm' })
       )
-    );
+    )
   }
 
-  async _checkMonitors() {
-    const monitors = this._getMonitors();
+  async _checkMonitors () {
+    const monitors = this._getMonitors()
     for (const monitor of monitors) {
-      const snapshot = await monitor.snapshot();
+      const snapshot = await monitor.snapshot()
       for (const entry of snapshot) {
         raiseOrLowerAlarm(
           `${monitor.alarmId}|${entry.uuid}|RRD`,
           !entry.couldFindRRD,
           () => {
             this._sendAlertEmail(
-              "Secondary Issue",
+              'Secondary Issue',
               `
 ## There was an issue when trying to check ${monitor.title}
 ${entry.listItem}`
-            );
+            )
           },
           () => {}
-        );
+        )
         if (!entry.couldFindRRD) {
-          continue;
+          continue
         }
         const raiseAlarm = alarmId => {
           // sample XenCenter message:
@@ -482,8 +482,8 @@ ${entry.listItem}`
           this._xo
             .getXapi(entry.object.uuid)
             .call(
-              "message.create",
-              "ALARM",
+              'message.create',
+              'ALARM',
               3,
               entry.object.$type,
               entry.object.uuid,
@@ -492,38 +492,38 @@ ${entry.listItem}`
               )} config: <variable> <name value="${
                 monitor.variable_name
               }"/> </variable>`
-            );
+            )
           this._sendAlertEmail(
-            "",
+            '',
             `
 ## ALERT ${monitor.title}
 ${entry.listItem}
 ### Description
   ${monitor.vmFunction.description}`
-          );
-        };
+          )
+        }
         const lowerAlarm = alarmId => {
-          console.log("lowering Alarm", alarmId);
+          console.log('lowering Alarm', alarmId)
           this._sendAlertEmail(
-            "END OF ALERT",
+            'END OF ALERT',
             `
 ## END OF ALERT ${monitor.title}
 ${entry.listItem}
 ### Description
   ${monitor.vmFunction.description}`
-          );
-        };
+          )
+        }
         raiseOrLowerAlarm(
           `${monitor.alarmId}|${entry.uuid}`,
           entry.shouldAlarm,
           raiseAlarm,
           lowerAlarm
-        );
+        )
       }
     }
   }
 
-  _sendAlertEmail(subjectSuffix, markdownBody) {
+  _sendAlertEmail (subjectSuffix, markdownBody) {
     if (
       this._configuration.toEmails !== undefined &&
       this._xo.sendEmail !== undefined
@@ -535,42 +535,42 @@ ${entry.listItem}
           markdownBody +
           `\n\n\nSent from Xen Orchestra [perf-alert plugin](${
             this._configuration.baseUrl
-          }#/settings/plugins)\n`
-      });
+          }#/settings/plugins)\n`,
+      })
     } else {
-      throw new Error("The email alert system has a configuration issue.");
+      throw new Error('The email alert system has a configuration issue.')
     }
   }
 
-  async getRrd(xoObject, secondsAgo) {
-    const host = xoObject.$type === "host" ? xoObject : xoObject.$resident_on;
+  async getRrd (xoObject, secondsAgo) {
+    const host = xoObject.$type === 'host' ? xoObject : xoObject.$resident_on
     if (host == null) {
-      return null;
+      return null
     }
     // we get the xapi per host, because the alarms can check VMs in various pools
-    const xapi = this._xo.getXapi(host.uuid);
-    const serverTimestamp = await getServerTimestamp(xapi, host);
+    const xapi = this._xo.getXapi(host.uuid)
+    const serverTimestamp = await getServerTimestamp(xapi, host)
     const payload = {
       host,
       query: {
-        cf: "AVERAGE",
-        host: (xoObject.$type === "host").toString(),
-        json: "true",
-        start: serverTimestamp - secondsAgo
-      }
-    };
-    if (xoObject.$type === "vm") {
-      payload["vm_uuid"] = xoObject.uuid;
+        cf: 'AVERAGE',
+        host: (xoObject.$type === 'host').toString(),
+        json: 'true',
+        start: serverTimestamp - secondsAgo,
+      },
+    }
+    if (xoObject.$type === 'vm') {
+      payload['vm_uuid'] = xoObject.uuid
     }
     return JSON.parse(
-      await (await xapi.getResource("/rrd_updates", payload)).readAll()
-    );
+      await (await xapi.getResource('/rrd_updates', payload)).readAll()
+    )
   }
 }
 
-exports.default = function({ xo }) {
-  return new PerfAlertXoPlugin(xo);
-};
+exports.default = function ({ xo }) {
+  return new PerfAlertXoPlugin(xo)
+}
 
 /* example legend fields:
 host : memory_total_kib
