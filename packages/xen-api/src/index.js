@@ -235,6 +235,8 @@ export class Xapi extends EventEmitter {
       // Memoize this function _addObject().
       this._getPool = () => this._pool
 
+      this._nTasks = 0
+
       const objects = this._objects = new Collection()
       objects.getKey = getKey
 
@@ -397,13 +399,13 @@ export class Xapi extends EventEmitter {
   callAsync ($cancelToken, method, ...args) {
     return this._readOnly && !isReadOnlyCall(method, args)
       ? Promise.reject(new Error(`cannot call ${method}() in read only mode`))
-      : this._sessionCall(`Async.${method}`, ...args).then(taskRef => {
+      : this._sessionCall(`Async.${method}`, args).then(taskRef => {
         $cancelToken.promise.then(() => {
-          this._sessionCall('task.cancel', taskRef).catch(noop)
+          this._sessionCall('task.cancel', [taskRef]).catch(noop)
         })
 
         return this.watchTask(taskRef)::lastly(() => {
-          this._sessionCall('task.destroy', taskRef).catch(noop)
+          this._sessionCall('task.destroy', [taskRef]).catch(noop)
         })
       })
   }
@@ -421,7 +423,7 @@ export class Xapi extends EventEmitter {
 
     promise.then(taskRef => {
       const destroy = () =>
-        this._sessionCall('task.destroy', taskRef).catch(noop)
+        this._sessionCall('task.destroy', [taskRef]).catch(noop)
       this.watchTask(taskRef).then(destroy, destroy)
     })
 
@@ -473,7 +475,7 @@ export class Xapi extends EventEmitter {
   }
 
   getRecord (type, ref) {
-    return this._sessionCall(`${type}.get_record`, ref)
+    return this._sessionCall(`${type}.get_record`, [ref])
   }
 
   @cancelable
@@ -685,7 +687,12 @@ export class Xapi extends EventEmitter {
         throw new Error('session.*() methods are disabled from this interface')
       }
 
-      return this._transportCall(method, [this.sessionId].concat(args))
+      const newArgs = [this.sessionId]
+      if (args !== undefined) {
+        newArgs.push.apply(newArgs, args)
+      }
+
+      return this._transportCall(method, newArgs)
         ::pCatch(isSessionInvalid, () => {
           // XAPI is sometimes reinitialized and sessions are lost.
           // Try to login again.
@@ -770,7 +777,22 @@ export class Xapi extends EventEmitter {
 
     if (type === 'pool') {
       this._pool = object
+
+      const eventWatchers = this._eventWatchers
+      if (eventWatchers !== undefined) {
+        forEach(object.other_config, (_, key) => {
+          const eventWatcher = eventWatchers[key]
+          if (eventWatcher !== undefined) {
+            delete eventWatchers[key]
+            eventWatcher(object)
+          }
+        })
+      }
     } else if (type === 'task') {
+      if (prev === undefined) {
+        ++this._nTasks
+      }
+
       const taskWatchers = this._taskWatchers
       const taskWatcher = taskWatchers[ref]
       if (
@@ -780,16 +802,18 @@ export class Xapi extends EventEmitter {
         delete taskWatchers[ref]
       }
     }
-
-    return object
   }
 
-  _removeObject (ref) {
+  _removeObject (type, ref) {
     const byRefs = this._objectsByRefs
     const object = byRefs[ref]
     if (object !== undefined) {
       this._objects.unset(object.$id)
       delete byRefs[ref]
+
+      if (type === 'task') {
+        --this._nTasks
+      }
     }
 
     const taskWatchers = this._taskWatchers
@@ -801,26 +825,12 @@ export class Xapi extends EventEmitter {
   }
 
   _processEvents (events) {
-    const eventWatchers = this._eventWatchers
-
     forEach(events, event => {
-      let object
-      const { ref } = event
+      const { class: type, ref } = event
       if (event.operation === 'del') {
-        this._removeObject(ref)
+        this._removeObject(type, ref)
       } else {
-        const type = event.class
-        object = this._addObject(type, ref, event.snapshot)
-
-        if (eventWatchers !== undefined && type === 'pool') {
-          forEach(object.other_config, (_, key) => {
-            const eventWatcher = eventWatchers[key]
-            if (eventWatcher !== undefined) {
-              delete eventWatchers[key]
-              eventWatcher(object)
-            }
-          })
-        }
+        this._addObject(type, ref, event.snapshot)
       }
     })
   }
@@ -832,9 +842,27 @@ export class Xapi extends EventEmitter {
       60 + 0.1, // Force float.
     ]).then(onSuccess, onFailure)
 
-    const onSuccess = ({token, events}) => {
+    const onSuccess = ({ events, token, valid_ref_counts: { task } }) => {
       this._fromToken = token
       this._processEvents(events)
+
+      if (task !== this._nTasks) {
+        this._sessionCall('task.get_all_records').then(tasks => {
+          const toRemove = new Set()
+          forEach(this.objects.all, object => {
+            if (object.$type === 'task') {
+              toRemove.add(object.$ref)
+            }
+          })
+          forEach(tasks, (task, ref) => {
+            toRemove.delete(ref)
+            this._addObject('task', ref, task)
+          })
+          toRemove.forEach(ref => {
+            this._removeObject('task', ref)
+          })
+        }).catch(noop)
+      }
 
       const debounce = this._debounce
       return debounce != null
@@ -870,7 +898,7 @@ export class Xapi extends EventEmitter {
   // It also has to manually get all objects first.
   _watchEventsLegacy () {
     const getAllObjects = () => {
-      return this._sessionCall('system.listMethods', []).then(methods => {
+      return this._sessionCall('system.listMethods').then(methods => {
         // Uses introspection to determine the methods to use to get
         // all objects.
         const getAllRecordsMethods = filter(
@@ -880,7 +908,7 @@ export class Xapi extends EventEmitter {
 
         return Promise.all(map(
           getAllRecordsMethods,
-          method => this._sessionCall(method, []).then(
+          method => this._sessionCall(method).then(
             objects => {
               const type = method.slice(0, method.indexOf('.')).toLowerCase()
               forEach(objects, (object, ref) => {
@@ -899,7 +927,7 @@ export class Xapi extends EventEmitter {
 
     const watchEvents = () => this._sessionCall('event.register', [ ['*'] ]).then(loop)
 
-    const loop = () => this.status === CONNECTED && this._sessionCall('event.next', []).then(onSuccess, onFailure)
+    const loop = () => this.status === CONNECTED && this._sessionCall('event.next').then(onSuccess, onFailure)
 
     const onSuccess = events => {
       this._processEvents(events)
