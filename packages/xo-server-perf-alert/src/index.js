@@ -1,9 +1,10 @@
+import JSON from 'json5'
 import { CronJob } from 'cron'
 import { forOwn, map, mean } from 'lodash'
 import { utcParse } from 'd3-time-format'
 
 const VM_FUNCTIONS = {
-  cpu_usage: {
+  cpuUsage: {
     description:
       'Raises an alarm when the average usage of any CPU is higher than the threshold',
     unit: '%',
@@ -29,7 +30,7 @@ const VM_FUNCTIONS = {
       }
     },
   },
-  memory_usage: {
+  memoryUsage: {
     description:
       'Raises an alarm when the used memory % is higher than the threshold',
     unit: '% used',
@@ -58,7 +59,7 @@ const VM_FUNCTIONS = {
 }
 
 const HOST_FUNCTIONS = {
-  cpu_usage: {
+  cpuUsage: {
     description:
       'Raises an alarm when the average usage of any CPU is higher than the threshold',
     unit: '%',
@@ -84,7 +85,7 @@ const HOST_FUNCTIONS = {
       }
     },
   },
-  memory_usage: {
+  memoryUsage: {
     description:
       'Raises an alarm when the used memory % is higher than the threshold',
     unit: '% used',
@@ -148,7 +149,7 @@ export const configurationSchema = {
               $type: 'Host',
             },
           },
-          variable_name: {
+          variableName: {
             title: 'Alarm Type',
             description: Object.keys(HOST_FUNCTIONS)
               .map(
@@ -162,14 +163,14 @@ export const configurationSchema = {
             default: Object.keys(HOST_FUNCTIONS)[0],
             enum: Object.keys(HOST_FUNCTIONS),
           },
-          alarm_trigger_level: {
+          alarmTriggerLevel: {
             title: 'Threshold',
             description:
               'The direction of the crossing is given by the Alarm type',
             type: 'number',
             default: 40,
           },
-          alarm_trigger_period: {
+          alarmTriggerPeriod: {
             title: 'Average Length (s)',
             description:
               'The points are averaged this number of seconds then the average is compared with the threshold',
@@ -197,7 +198,7 @@ export const configurationSchema = {
               $type: 'VM',
             },
           },
-          variable_name: {
+          variableName: {
             title: 'Alarm Type',
             description: Object.keys(VM_FUNCTIONS)
               .map(
@@ -211,14 +212,14 @@ export const configurationSchema = {
             default: Object.keys(VM_FUNCTIONS)[0],
             enum: Object.keys(VM_FUNCTIONS),
           },
-          alarm_trigger_level: {
+          alarmTriggerLevel: {
             title: 'Threshold',
             description:
               'The direction of the crossing is given by the Alarm type',
             type: 'number',
             default: 40,
           },
-          alarm_trigger_period: {
+          alarmTriggerPeriod: {
             title: 'Average Length (s)',
             description:
               'The points are averaged this number of seconds then the average is compared with the threshold',
@@ -331,11 +332,11 @@ ${hostMonitorPart2.join('\n')}`
   }
 
   _parseDefinition (definition) {
-    const alarmId = `${definition.objectType}|${definition.variable_name}|${
-      definition.alarm_trigger_level
+    const alarmId = `${definition.objectType}|${definition.variableName}|${
+      definition.alarmTriggerLevel
     }`
     const typeFunction =
-      TYPE_FUNCTION_MAP[definition.objectType][definition.variable_name]
+      TYPE_FUNCTION_MAP[definition.objectType][definition.variableName]
     const parseData = (result, uuid) => {
       const parsedLegend = result.meta.legend.map((l, index) => {
         const [operation, type, uuid, name] = l.split(':')
@@ -371,23 +372,23 @@ ${hostMonitorPart2.join('\n')}`
       })
       const parser = typeFunction.createParser(
         parsedLegend.filter(l => l.uuid === uuid),
-        definition.alarm_trigger_level
+        definition.alarmTriggerLevel
       )
       result.data.forEach(d => parser.parseRow(d))
       return parser
     }
     const observationPeriod =
-      definition.alarm_trigger_period !== undefined
-        ? definition.alarm_trigger_period
+      definition.alarmTriggerPeriod !== undefined
+        ? definition.alarmTriggerPeriod
         : 60
     const typeText = definition.objectType === 'host' ? 'Host' : 'VM'
     return {
       ...definition,
       alarmId,
       vmFunction: typeFunction,
-      title: `${typeText} ${definition.variable_name} ${
+      title: `${typeText} ${definition.variableName} ${
         typeFunction.comparator
-      } ${definition.alarm_trigger_level}${typeFunction.unit}`,
+      } ${definition.alarmTriggerLevel}${typeFunction.unit}`,
       tableHeader: `${typeText}  | Value | Alert\n--- | -----:| ---:`,
       snapshot: async () => {
         return Promise.all(
@@ -404,7 +405,7 @@ ${hostMonitorPart2.join('\n')}`
                 couldFindRRD,
                 objectLink: objectLink,
                 listItem: `  * ${typeText} ${objectLink} ${
-                  definition.variable_name
+                  definition.variableName
                 }: **Can't read performance counters**\n`,
                 tableItem: `${objectLink} | - | **Can't read performance counters**\n`,
               }
@@ -421,7 +422,7 @@ ${hostMonitorPart2.join('\n')}`
                 shouldAlarm: shouldAlarm,
                 textValue: textValue,
                 listItem: `  * ${typeText} ${objectLink} ${
-                  definition.variable_name
+                  definition.variableName
                 }: ${textValue}\n`,
                 tableItem: `${objectLink} | ${textValue} | ${
                   shouldAlarm ? '**Alert Ongoing**' : 'no alert'
@@ -434,7 +435,7 @@ ${hostMonitorPart2.join('\n')}`
                 couldFindRRD: false,
                 objectLink: `cannot find object ${uuid}`,
                 listItem: `  * ${typeText} ${uuid} ${
-                  definition.variable_name
+                  definition.variableName
                 }: **Can't read performance counters**\n`,
                 tableItem: `object ${uuid} | - | **Can't read performance counters**\n`,
               }
@@ -490,7 +491,7 @@ ${entry.listItem}`
               `value: ${entry.value.toFixed(
                 1
               )} config: <variable> <name value="${
-                monitor.variable_name
+                monitor.variableName
               }"/> </variable>`
             )
           this._sendAlertEmail(
@@ -562,6 +563,7 @@ ${entry.listItem}
     if (xoObject.$type === 'vm') {
       payload['vm_uuid'] = xoObject.uuid
     }
+    // JSON is not well formed, can't use the default node parser
     return JSON.parse(
       await (await xapi.getResource('/rrd_updates', payload)).readAll()
     )
