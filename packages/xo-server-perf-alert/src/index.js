@@ -1,4 +1,4 @@
-import JSON from 'json5'
+import JSON5 from 'json5'
 import { CronJob } from 'cron'
 import { forOwn, map, mean } from 'lodash'
 import { utcParse } from 'd3-time-format'
@@ -564,7 +564,7 @@ ${entry.listItem}
       payload['vm_uuid'] = xoObject.uuid
     }
     // JSON is not well formed, can't use the default node parser
-    return JSON.parse(
+    return JSON5.parse(
       await (await xapi.getResource('/rrd_updates', payload)).readAll()
     )
   }
