@@ -20,8 +20,8 @@ describe('next()', () => {
       hourly: ['@hourly', '2018-04-09T07:00'],
       daily: ['@daily', '2018-04-10T00:00'],
       monthly: ['@monthly', '2018-05-01T00:00'],
-      yearly: ['0 0 1 jan *', '2019-01-01T00:00'],
-      weekly: ['0 0 * * mon', '2018-04-16T00:00'],
+      yearly: ['@yearly', '2019-01-01T00:00'],
+      weekly: ['@weekly', '2018-04-15T00:00'],
     },
     ([pattern, result], title) =>
       it(title, () => {
