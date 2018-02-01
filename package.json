@@ -59,6 +59,7 @@
     "test": "jest && flow status"
   },
   "workspaces": [
+    "@xen-orchestra/*",
     "packages/*"
   ]
 }

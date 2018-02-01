@@ -25,22 +25,23 @@
     "node": ">=4"
   },
   "dependencies": {
-    "@babel/polyfill": "7.0.0-beta.37"
+    "@babel/polyfill": "7.0.0-beta.39"
   },
   "devDependencies": {
-    "@babel/cli": "7.0.0-beta.37",
-    "@babel/core": "7.0.0-beta.37",
-    "@babel/preset-env": "7.0.0-beta.37",
-    "@babel/preset-flow": "7.0.0-beta.37",
+    "@babel/cli": "7.0.0-beta.39",
+    "@babel/core": "7.0.0-beta.39",
+    "@babel/preset-env": "7.0.0-beta.39",
+    "@babel/preset-flow": "7.0.0-beta.39",
     "babel-plugin-lodash": "^3.3.2",
     "cross-env": "^5.1.1",
     "rimraf": "^2.6.2"
   },
   "scripts": {
     "build": "cross-env NODE_ENV=production babel --source-maps --out-dir=dist/ src/",
+    "clean": "rimraf dist/",
     "dev": "cross-env NODE_ENV=development babel --watch --source-maps --out-dir=dist/ src/",
-    "prebuild": "rimraf dist/",
-    "predev": "yarn run prebuild",
+    "prebuild": "yarn run clean",
+    "predev": "yarn run clean",
     "prepublishOnly": "yarn run build"
   }
 }

@@ -58,9 +58,6 @@ const getVisibleTodos = createSelector(
 
 # Build for production (automatically called by npm install)
 > yarn build
-
-# Commit changes
-> yarn cz
 ```
 
 ## Contributions
