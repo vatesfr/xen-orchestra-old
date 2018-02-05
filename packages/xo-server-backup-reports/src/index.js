@@ -34,6 +34,7 @@ export const configurationSchema = {
 // ===================================================================
 
 const ICON_FAILURE = '🚨'
+const ICON_SKIPPED = '✖'
 const ICON_SUCCESS = '✔'
 
 const DATE_FORMAT = 'dddd, MMMM Do YYYY, h:mm:ss a'
@@ -62,6 +63,13 @@ const formatSpeed = (bytes, milliseconds) =>
 const logError = e => {
   console.error('backup report error:', e)
 }
+
+const UNHEALTHY_VDI_CHAIN_ERROR = 'unhealthy VDI chain'
+const NO_SUCH_OBJECT_ERROR = 'no such object'
+
+const isAnError = error =>
+  error.message !== UNHEALTHY_VDI_CHAIN_ERROR &&
+  error.message !== NO_SUCH_OBJECT_ERROR
 
 class BackupReportsXoPlugin {
   constructor (xo) {
@@ -115,14 +123,17 @@ class BackupReportsXoPlugin {
 
     const reportOnFailure =
       reportWhen === 'fail' || // xo-web < 5
-      reportWhen === 'failure' // xo-web >= 5
+      reportWhen === 'failure' || // xo-web >= 5
+      reportWhen === 'failure or skipped'
 
     let globalMergeSize = 0
     let globalTransferSize = 0
     let nFailures = 0
+    let nSkipped = 0
 
     const failedBackupsText = []
     const nagiosText = []
+    const skippedBackupsText = []
     const successfulBackupText = []
 
     const formatDate = createDateFormater(status.timezone)
@@ -148,19 +159,31 @@ class BackupReportsXoPlugin {
 
       const { error } = call
       if (error !== undefined) {
-        ++nFailures
-
         const { message } = error
 
-        failedBackupsText.push(
-          ...text,
-          `- **Error**: ${message}`,
-          ''
-        )
+        if (isAnError(error)) {
+          ++nFailures
+          failedBackupsText.push(
+            ...text,
+            `- **Error**: ${message}`,
+            ''
+          )
 
-        nagiosText.push(
-          `[ ${vm !== undefined ? vm.name_label : 'undefined'} : ${message} ]`
-        )
+          nagiosText.push(
+            `[(Failed) ${vm !== undefined ? vm.name_label : 'undefined'} : ${message} ]`
+          )
+        } else {
+          ++nSkipped
+          skippedBackupsText.push(
+            ...text,
+            `- **Reason**: ${message}`,
+            ''
+          )
+
+          nagiosText.push(
+            `[(Skipped) ${vm !== undefined ? vm.name_label : 'undefined'} : ${message} ]`
+          )
+        }
       } else if (!reportOnFailure) {
         const { returnedValue } = call
         if (returnedValue != null) {
@@ -188,7 +211,7 @@ class BackupReportsXoPlugin {
       }
     })
 
-    const globalSuccess = nFailures === 0
+    const globalSuccess = nFailures === 0 && nSkipped === 0
     if (reportOnFailure && globalSuccess) {
       return
     }
@@ -196,10 +219,15 @@ class BackupReportsXoPlugin {
     const { end, start } = status
     const { tag } = oneCall.params
     const duration = end - start
-    const nSuccesses = nCalls - nFailures
+    const nSuccesses = nCalls - nFailures - nSkipped
+    const globalStatus = globalSuccess
+      ? `Success`
+      : nFailures !== 0
+        ? `Failure`
+        : `Skipped`
 
     let markdown = [
-      `##  Global status: ${globalSuccess ? `Success` : `Failure`}`,
+      `##  Global status: ${globalStatus}`,
       '',
       `- **Type**: ${formatMethod(method)}`,
       `- **Start time**: ${formatDate(start)}`,
@@ -229,6 +257,16 @@ class BackupReportsXoPlugin {
       )
     }
 
+    if (nSkipped !== 0) {
+      markdown.push(
+        '---',
+        '',
+        `## ${nSkipped} Skipped`,
+        '',
+        ...skippedBackupsText
+      )
+    }
+
     if (nSuccesses !== 0 && !reportOnFailure) {
       markdown.push(
         '---',
@@ -251,10 +289,12 @@ class BackupReportsXoPlugin {
     return Promise.all([
       xo.sendEmail !== undefined && xo.sendEmail({
         to: this._mailsReceivers,
-        subject: `[Xen Orchestra] ${
-          globalSuccess ? 'Success' : 'Failure'
-        } − Backup report for ${tag} ${
-          globalSuccess ? ICON_SUCCESS : ICON_FAILURE
+        subject: `[Xen Orchestra] ${globalStatus} − Backup report for ${tag} ${
+          globalSuccess
+            ? ICON_SUCCESS
+            : nFailures !== 0
+              ? ICON_FAILURE
+              : ICON_SKIPPED
         }`,
         markdown,
       }),
@@ -269,7 +309,7 @@ class BackupReportsXoPlugin {
         status: globalSuccess ? 0 : 2,
         message: globalSuccess
           ? `[Xen Orchestra] [Success] Backup report for ${tag}`
-          : `[Xen Orchestra] [Failure] Backup report for ${tag} - VMs : ${nagiosText.join(' ')}`,
+          : `[Xen Orchestra] [${nFailures !== 0 ? 'Failure' : 'Skipped'}] Backup report for ${tag} - VMs : ${nagiosText.join(' ')}`,
       }),
     ])
   }
