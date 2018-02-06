@@ -20,7 +20,7 @@ class Job {
       const delay = schedule._nextDelay()
       this._timeout = delay < MAX_DELAY
         ? setTimeout(wrapper, delay)
-        : setTimeout(schedule, MAX_DELAY)
+        : setTimeout(scheduleNext, MAX_DELAY)
     }
 
     this._scheduleNext = scheduleNext
