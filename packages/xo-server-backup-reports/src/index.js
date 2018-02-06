@@ -67,7 +67,7 @@ const logError = e => {
 const UNHEALTHY_VDI_CHAIN_ERROR = 'unhealthy VDI chain'
 const NO_SUCH_OBJECT_ERROR = 'no such object'
 
-const isAnError = error =>
+const isSkippedError = error =>
   error.message !== UNHEALTHY_VDI_CHAIN_ERROR &&
   error.message !== NO_SUCH_OBJECT_ERROR
 
@@ -123,8 +123,7 @@ class BackupReportsXoPlugin {
 
     const reportOnFailure =
       reportWhen === 'fail' || // xo-web < 5
-      reportWhen === 'failure' || // xo-web >= 5
-      reportWhen === 'failure or skipped'
+      reportWhen === 'failure' // xo-web >= 5
 
     let globalMergeSize = 0
     let globalTransferSize = 0
@@ -161,7 +160,7 @@ class BackupReportsXoPlugin {
       if (error !== undefined) {
         const { message } = error
 
-        if (isAnError(error)) {
+        if (isSkippedError(error)) {
           ++nFailures
           failedBackupsText.push(
             ...text,
