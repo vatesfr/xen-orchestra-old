@@ -510,6 +510,17 @@ export async function set (params) {
     await this.setVmResourceSet(vmId, resourceSetId)
   }
 
+  const share = extract(params, 'share')
+  const vmResourceSetId = VM.resourceSet
+
+  if (share && vmResourceSetId === undefined) {
+    throw new Error('the vm is not in a resource set')
+  }
+
+  if (share) {
+    await this.shareVmResourceSet(vmId, vmResourceSetId)
+  }
+
   return xapi.editVm(vmId, params, async (limits, vm) => {
     const resourceSet = xapi.xo.getData(vm, 'resourceSet')
 
@@ -581,6 +592,8 @@ set.params = {
 
   // Move the vm In to/Out of Self Service
   resourceSet: { type: ['string', 'null'], optional: true },
+
+  share: { type: 'boolean', optional: true },
 }
 
 set.resolve = {
