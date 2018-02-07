@@ -1,5 +1,7 @@
 import { ignoreErrors } from 'promise-toolbox'
+import { isEqual, some } from 'lodash'
 import { noSuchObject } from 'xo-common/api-errors'
+import { parseUrl } from 'xen-api'
 
 import Xapi from '../xapi'
 import xapiObjectToXo from '../xapi-object-to-xo'
@@ -92,6 +94,7 @@ export default class {
     allowUnauthorized,
     enabled,
     error,
+    force,
     host,
     label,
     password,
@@ -107,6 +110,7 @@ export default class {
       username !== undefined
 
     if (
+      !force &&
       requireDisconnected &&
       xapi !== undefined &&
       xapi.status !== 'disconnected'
@@ -322,14 +326,43 @@ export default class {
 
     xapi.xo.install()
 
-    await xapi.connect().then(
-      () => this.updateXenServer(id, { error: null }),
-      error => {
-        this.updateXenServer(id, { error: serializeError(error) })
+    let _url
+    xapi.on('redirect', url => {
+      _url = url
+    })
 
+    await xapi.connect().catch(
+      error => {
+        this.updateXenServer(id, { force: true, error: serializeError(error) })
         throw error
       }
     )
+
+    let error = null
+    if (_url !== undefined) {
+      const servers = await this.getAllXenServers()
+      const serverExists = some(
+        servers,
+        server => isEqual(parseUrl(server.host), _url)
+      )
+
+      if (!serverExists) {
+        return this.updateXenServer(id, { host: _url.hostname, force: true, error })
+      } else {
+        await this.disconnectXenServer(id)
+
+        error = {
+          code: 'Connection failed',
+          message: 'host is slave and the master is already connected',
+        }
+        console.error(
+          `[WARN] ${server.host}:`,
+          error.message
+        )
+      }
+    }
+
+    return this.updateXenServer(id, { force: true, error })
   }
 
   async disconnectXenServer (id) {
