@@ -1,7 +1,7 @@
 /* eslint no-throw-literal: 0 */
 
 import eventToPromise from 'event-to-promise'
-import { bind, noop } from 'lodash'
+import { bind, find, identity, noop } from 'lodash'
 import { createClient } from 'ldapjs'
 import { escape } from 'ldapjs/lib/filters/escape'
 import { promisify } from 'promise-toolbox'
@@ -19,6 +19,23 @@ const evalFilter = (filter, vars) => filter.replace(VAR_RE, (_, name) => {
 
   return escape(value)
 })
+const makeEvalFormat = format => format === undefined
+  ? identity
+  : (input, record) => format.replace(VAR_RE, (_, name) => {
+    if (name === 'input') {
+      return input
+    }
+
+    let tmp = find(record.attributes, _ => _.type === name)
+    if (
+      tmp !== undefined &&
+      (tmp = tmp.vals).length !== 0
+    ) {
+      return tmp[0]
+    }
+
+    throw new Error(`invalid entry ${name}`)
+  })
 
 export const configurationSchema = {
   type: 'object',
@@ -87,6 +104,12 @@ something like:
       type: 'string',
       default: '(uid={{name}})',
     },
+    usernameFormat: {
+      description: `
+
+`.trim(),
+      type: 'string',
+    },
   },
   required: ['uri', 'base'],
 }
@@ -144,15 +167,10 @@ class AuthLdap {
       }
     }
 
-    const {
-      bind: credentials,
-      base: searchBase,
-      filter: searchFilter = '(uid={{name}})',
-    } = conf
-
-    this._credentials = credentials
-    this._searchBase = searchBase
-    this._searchFilter = searchFilter
+    this._credentials = conf.bind
+    this._formatUsername = makeEvalFormat(conf.usernameFormat)
+    this._searchBase = conf.base
+    this._searchFilter = conf.filter
   }
 
   load () {
@@ -229,7 +247,11 @@ class AuthLdap {
         try {
           logger(`attempting to bind as ${entry.objectName}`)
           await bind(entry.objectName, password)
+
+          username = this._formatUsername(username, entry)
+
           logger(`successfully bound as ${entry.objectName} => ${username} authenticated`)
+
           return { username }
         } catch (error) {
           logger(`failed to bind as ${entry.objectName}: ${error.message}`)
